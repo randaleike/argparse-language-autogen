@@ -46,9 +46,46 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @param eulaName {string} EULA text to use in the header message or None to default MIT Open
         """
         super().__init__(owner, eulaName)
+        self.versionMajor = 0
+        self.versionMinor = 9
+        self.versionPatch = 0
+        self.versionTweak = 0
+
         self.jsonLangData = LanguageDescriptionList(jsonLangFileName)
         self.jsonStringsData = StringClassDescription(jsonStringsFilename)
         self.nameSpaceName = StringClassNameGen.getNamespaceName()
+
+        self.langHFileNames = []
+        self.langCppFileNames = []
+        self.langUnittestFileNames = []
+        self.includeSubDir = []
+
+    def getCmakeLangHFileNames(self):
+        return self.langHFileNames
+
+    def getCmakeIncludeDirs(self):
+        return self.includeSubDir
+
+    def getCmakeLangLibFileNames(self):
+        return self.langCppFileNames
+
+    def getCmakeCppUnitTestLangFiles(self, languageName):
+        return self.langCppFileNames[languageName], self.langUnittestFileNames[languageName]
+
+    def getCmakeCppUnitTestSets(self):
+        """!
+        @brief Get the language unit test requirements list
+        @return list of tuples (string, string, string) - Language name,
+                                                          CPP files name,
+                                                          Unit test CPP file name
+        """
+        unittestSets = []
+        languageList = self.jsonLangData.getLanguageList()
+        for languageName in languageList:
+            cppFile, unittestFile = self.getCmakeCppUnitTestLangFiles(languageName)
+            unittestSets.append((languageName, cppFile, unittestFile))
+
+        return unittestSets
 
     def _genPropertyCode(self, langName, propertyName, propertyReturn, isText):
         """!
@@ -103,7 +140,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
             xlatedParamList = self.xlateParamList(propertyParams)
 
             # Output final declaration
-            self._writeMethod(hFile, propertyMethod, propertyDesc, xlatedParamList, xlatedRetDict, None, postfix)
+            hFile.writelines(self._writeMethod(propertyMethod, propertyDesc, xlatedParamList, xlatedRetDict, None, postfix))
 
     def _writeSrcPropertyMethods(self, cppFile, langName, className):
         """!
@@ -177,7 +214,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
             transDesc, transParams, transReturn = self.jsonStringsData.getTranlateMethodFunctionData(translateMethodName)
 
             # Output the function
-            self._writeMethod(hFile, translateMethodName, transDesc, transParams, transReturn, None, postfixFinal)
+            hFile.writelines(self._writeMethod(translateMethodName, transDesc, transParams, transReturn, None, postfixFinal))
 
     def _genTranslateCode(self, streamDescList):
         """!
@@ -551,11 +588,12 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @brief Generate the language specific strings class include file
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to place file in
-        @return tuple - boolean = True for pass, else false for failure
-                        string = subdir/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
         retFileName = os.path.join(subdir, self._generateHFileName(languageName))
+        self.langHFileNames.append({languageName: retFileName})
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -566,18 +604,19 @@ class GenerateLangFiles(BaseStringClassGenerator):
             print("ERROR: Unable to open "+writeFileName+" for writing!")
             returnStatus = False
 
-        return returnStatus, retFileName
+        return returnStatus
 
     def generateLangCppFile(self, languageName, baseDirectory = "../output", subdir = "src"):
         """!
         @brief Generate the language specific strings class cpp file
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to place file in
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
         retFileName = os.path.join(subdir, self._generateCppFileName(languageName))
+        self.langCppFileNames.append({languageName: retFileName})
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -588,18 +627,19 @@ class GenerateLangFiles(BaseStringClassGenerator):
             print("ERROR: Unable to open "+writeFileName+" for writing!")
             returnStatus = False
 
-        return returnStatus, retFileName
+        return returnStatus
 
     def generateLangUnittestFile(self, languageName, baseDirectory = "../output", subdir = "test"):
         """!
         @brief Generate the language specific strings class unittest file
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to place file in
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
         retFileName = os.path.join(subdir, self._generateCppFileName(languageName))
+        self.langUnittestFileNames.append({languageName: retFileName})
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -610,70 +650,68 @@ class GenerateLangFiles(BaseStringClassGenerator):
             print("ERROR: Unable to open "+writeFileName+" for writing!")
             returnStatus = False
 
-        return returnStatus, retFileName
+        return returnStatus
 
     def generateLangHFiles(self, baseDirectory = "../output", subdir = "inc"):
         """!
         @brief Generate all language specific strings class include files
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to place file in
-        @return tuple - boolean = True for pass, else false for failure
-                        list of strings = Sub-path/name of the generated files
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        fileList = []
+        self.langHFileNames = []
         languageList = self.jsonLangData.getLanguageList()
+        self.includeSubDir.append(subdir)
+
         for languageName in languageList:
-            fileStatus, filename = self.generateLangHFile(languageName, baseDirectory, subdir)
-            fileList.append(filename)
+            fileStatus = self.generateLangHFile(languageName, baseDirectory, subdir)
 
             if not fileStatus:
                 returnStatus = False
                 break
 
-        return returnStatus, fileList
+        return returnStatus
 
     def generateLangCppFiles(self, baseDirectory = "../output", subdir = "src"):
         """!
         @brief Generate all language specific strings class cpp files
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to place file in
-        @return tuple - boolean = True for pass, else false for failure
-                        list of strings = Sub-path/name of the generated files
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        fileList = []
+        self.langCppFileNames = []
         languageList = self.jsonLangData.getLanguageList()
+
         for languageName in languageList:
-            fileStatus, filename = self.generateLangCppFile(languageName, baseDirectory, subdir)
-            fileList.append(filename)
+            fileStatus = self.generateLangCppFile(languageName, baseDirectory, subdir)
 
             if not fileStatus:
                 returnStatus = False
                 break
 
-        return returnStatus, fileList
+        return returnStatus
 
     def generateLangUnittestFiles(self, baseDirectory = "../output", subdir = "test"):
         """!
         @brief Generate all language specific strings class unittest files
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to place file in
-        @return tuple - boolean = True for pass, else false for failure
-                        list of strings = Sub-path/name of the generated files
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        fileList = []
+        self.langUnittestFileNames = []
         languageList = self.jsonLangData.getLanguageList()
+
         for languageName in languageList:
-            fileStatus, filename = self.generateLangUnittestFile(languageName, baseDirectory, subdir)
-            fileList.append(filename)
+            fileStatus = self.generateLangUnittestFile(languageName, baseDirectory, subdir)
 
             if not fileStatus:
                 returnStatus = False
                 break
 
-        return returnStatus, fileList
+        return returnStatus
 
     def generateLangFiles(self, baseDirectory = "../output", incSubdir = "inc", srcSubdir="src", testSubDir="test"):
         """!
@@ -683,12 +721,9 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @param srcSubdir {string} Subdirectory to place cpp source files in
         @param testSubDir {string} Subdirectory to place unit test files in
         @return tuple - boolean = True for pass, else false for failure
-                        list of strings = Sub-path/name of the generated include files
-                        list of strings = Sub-path/name of the generated source files
-                        list of strings = Sub-path/name of the generated unittest source files
         """
-        hfileStatus, hFileList = self.generateLangHFiles(baseDirectory, incSubdir)
-        cppfileStatus, cppFileList = self.generateLangCppFiles(baseDirectory, srcSubdir)
-        tstfileStatus, tstFileList = self.generateLangUnittestFiles(baseDirectory, testSubDir)
+        hfileStatus = self.generateLangHFiles(baseDirectory, incSubdir)
+        cppfileStatus = self.generateLangCppFiles(baseDirectory, srcSubdir)
+        tstfileStatus = self.generateLangUnittestFiles(baseDirectory, testSubDir)
         finalStatus = hfileStatus and cppfileStatus and tstfileStatus
-        return finalStatus, hFileList, cppFileList, tstFileList
+        return finalStatus

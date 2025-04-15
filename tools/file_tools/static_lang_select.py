@@ -119,6 +119,18 @@ class StaticLangSelectFunctionGenerator(BaseCppClassGenerator):
         doCall = indentText+"return "+self.selectFunctionName+"();\n"
         return [doCall]
 
+    def genExternDefinition(self):
+        """!
+        @brief Return the external function definition
+        @return string - External function definition line
+        """
+        externDef = "extern "
+        externDef += self.returnType
+        externDef += " "
+        externDef += self.selectFunctionName
+        externDef += "();\n"
+        return externDef
+
     def genUnitTest(self, getIsoMethod, outfile):
         """!
         @brief Generate all unit tests for the selection function
@@ -129,12 +141,7 @@ class StaticLangSelectFunctionGenerator(BaseCppClassGenerator):
         # Generate block start code
         blockStart = []
         blockStart.append("#if "+self.defStaticString+"\n")
-        externDef = "extern "
-        externDef += self.returnType
-        externDef += " "
-        externDef += self.selectFunctionName
-        externDef += "();\n"
-        blockStart.append(externDef)
+        blockStart.append(self.genExternDefinition())
         outfile.writelines(blockStart)
 
         # Generate the testgenDoxyMethodComment
@@ -184,6 +191,13 @@ class StaticLangSelectFunctionGenerator(BaseCppClassGenerator):
         indentText = "".rjust(indent, " ")
         doCall = indentText+self.returnType+" "+checkVarName+" = "+self.selectFunctionName+"();\n"
         return [doCall]
+
+    def getUnittestExternInclude(self):
+        incBlock = []
+        incBlock.append("#if "+self.defStaticString+"\n")
+        incBlock.append(self.genExternDefinition())
+        incBlock.append("#endif // "+self.defStaticString+"\n")
+        return incBlock
 
     def getUnittestFileName(self):
         """!

@@ -129,20 +129,25 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         @param osLangSelectors {list} List of OS language selector function generation objects
         @param staticSelector {StaticLangSelectFunctionGenerator} Static generation object
         """
+        testBody = []
+
+        # generate the externals
+        for osSelector in osLangSelectors:
+            testBody.extend(osSelector.getUnittestExternInclude())
+        testBody.extend(staticSelector.getUnittestExternInclude())
+        testBody.append("\n") # whitespace for readability
+
         # Generate the test
         testBlockName = "SelectFunction"
         bodyIndentIndex = 4
         bodyIndent = "".rjust(bodyIndentIndex, " ")
         breifDesc = "Test "+self.selectFunctionName+" selection case"
-        testBody = self.doxyCommentGen.genDoxyMethodComment(breifDesc, [])
+        testBody.extend(self.doxyCommentGen.genDoxyMethodComment(breifDesc, []))
 
         testVar = "testVar"
         testVarDecl = self.returnType+" "+testVar
         testBody.append("TEST("+testBlockName+", TestLocalSelectMethod)\n")
         testBody.append("{\n")
-        testBody.append(bodyIndent+"// Generate the test language string object\n")
-        testBody.append(bodyIndent+testVarDecl+" = "+self.selectFunctionName+"();\n")
-        testBody.append("\n") # whitespace for readability
 
         # Generate OS calls
         firstOs = True
@@ -168,6 +173,10 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         testBody.append("#endif // defined os and defined("+self.dynamicCompileSwitch+")\n")
         getExpectedVal = expectedParser+"."+getIsoMethod+"().c_str()"
         testVarTest = testVar+"."+getIsoMethod+"().c_str()"
+        testBody.append("\n") # whitespace for readability
+
+        testBody.append(bodyIndent+"// Generate the test language string object\n")
+        testBody.append(bodyIndent+testVarDecl+" = "+self.selectFunctionName+"();\n")
         testBody.append(bodyIndent+"EXPECT_STREQ("+getExpectedVal+", "+testVarTest+";\n")
         testBody.append(self.genFunctionEnd())
         outfile.writelines(testBody)

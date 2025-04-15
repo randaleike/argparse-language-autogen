@@ -102,6 +102,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         functionBody.append(if1BodyIndent+"std::cmatch searchMatch;\n")
         functionBody.append(if1BodyIndent+"std::regex searchRegex(\"(^[a-z]{2})_([A-Z]{2})\\\\.(UTF[0-9]{1,2})\");\n")
         functionBody.append(if1BodyIndent+"bool matched = std::regex_match("+paramName+", searchMatch, searchRegex);\n")
+        functionBody.append("\n")  # whitespace for readability
         functionBody.append(if1BodyIndent+"// Determine the language\n")
 
         if2BodyIndent = if1BodyIndent+"".rjust(4, " ")
@@ -126,7 +127,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         # Add the final else (unknown language) case
         defaultLang, defaultIsoCode = self.langJsonData.getDefaultData()
-        functionBody.append(if1BodyIndent+"else //unknown language, use default language\n")
+        functionBody.append(if1BodyIndent+"else //unknown language code, use default language\n")
         functionBody.append(if1BodyIndent+"{\n")
         functionBody.append(if2BodyIndent+self.genMakePtrReturnStatement(defaultLang))
         functionBody.append(if1BodyIndent+"}\n")
@@ -199,6 +200,22 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         testBody.append("}\n")
         return testBody
 
+    def genExternDefinition(self):
+        """!
+        @brief Return the external function definition
+        @return string - External function definition line
+        """
+        externDef = "extern "
+        externDef += self.returnType
+        externDef += " "
+        externDef += self.selectFunctionName
+        externDef += "("
+        externDef += ParamRetDict.getParamType(self.paramDictList[0])
+        externDef += " "
+        externDef += ParamRetDict.getParamName(self.paramDictList[0])
+        externDef += ");\n"
+        return externDef
+
     def genUnitTest(self, getIsoMethod, outfile):
         """!
         @brief Generate all unit tests for the selection function
@@ -209,16 +226,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         # Generate block start code
         blockStart = []
         blockStart.append("#if "+self.defDynamicOsString+"\n")
-        externDef = "extern "
-        externDef += self.returnType
-        externDef += " "
-        externDef += self.selectFunctionName
-        externDef += "("
-        externDef += ParamRetDict.getParamType(self.paramDictList[0])
-        externDef += " "
-        externDef += ParamRetDict.getParamName(self.paramDictList[0])
-        externDef += ");\n"
-        blockStart.append(externDef)
+        blockStart.append(self.genExternDefinition())
         outfile.writelines(blockStart)
 
         # Generate the tests
@@ -270,7 +278,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         getParam += ParamRetDict.getParamType(self.paramDictList[0])
         getParam += " "
         getParam += localVarName
-        getParam += "= getenv(\"LANG\");\n"
+        getParam += " = getenv(\"LANG\");\n"
 
         doCall = indentText
         doCall += self.returnType
@@ -283,6 +291,14 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         doCall += ");\n"
 
         return [getParam, doCall]
+
+    def getUnittestExternInclude(self):
+        incBlock = []
+        incBlock.append("#if "+self.defDynamicOsString+"\n")
+        incBlock.append(self._genInclude("<cstdlib>"))
+        incBlock.append(self.genExternDefinition())
+        incBlock.append("#endif // "+self.defDynamicOsString+"\n")
+        return incBlock
 
     def getUnittestFileName(self):
         """!

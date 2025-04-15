@@ -62,6 +62,22 @@ class GenerateCppFileHelper(object):
             self.eula = EulaText(eulaName)
         self.doxyCommentGen = DoxyCommentGenerator(CommentParams.cCommentParms)
 
+    def genFunctionParams(self, paramDictList):
+        """!
+        @brief Generate the parameter method string
+        @return string - (<param type> <param name>[, <param type> <param name>[, ...]])
+        """
+        paramPrefix = ""
+        paramText = "("
+        for paramDict in paramDictList:
+             paramText += paramPrefix
+             paramText += ParamRetDict.getParamType(paramDict)
+             paramText += " "
+             paramText += ParamRetDict.getParamName(paramDict)
+             paramPrefix = ", "
+        paramText += ")"
+        return paramText
+
     def declareFunctionWithDecorations(self, name, briefdesc, paramDictList, retDict = None,
                                        indent = 0, noDoxygen = False,
                                        prefixDecaration = None, postfixDecaration = None, inlinecode = None,
@@ -98,18 +114,12 @@ class GenerateCppFileHelper(object):
 
         # Construct main function declaration
         if retDict is not None:
-            funcLine += ParamRetDict.getReturnType(retDict)+" "+name+"("
+            funcLine += ParamRetDict.getReturnType(retDict)+" "+name
         else:
-            funcLine += name+"("
+            funcLine += name
 
-        paramPrefix = ""
-        for paramDict in paramDictList:
-             funcLine += paramPrefix
-             funcLine += ParamRetDict.getParamType(paramDict)
-             funcLine += " "
-             funcLine += ParamRetDict.getParamName(paramDict)
-             paramPrefix = ", "
-        funcLine += ")"
+        # Add the function parameters
+        funcLine += self.genFunctionParams(paramDictList)
 
         # Add function post fix decorations if defined
         if postfixDecaration is not None:
@@ -149,7 +159,7 @@ class GenerateCppFileHelper(object):
         @param paramDictList {list of dictionaries} - Return parameter data
         @param retDict {dictionary} - Return parameter data
         @param noDoxygen {boolean} True skip doxygen comment generation, False generate doxygen comment block
-        @param prefixDecaration {string} Valid C/C++ declaration prefix decoration, i.e "virtual"
+        @param prefixDecaration {string} Valid C/C++ decldefineFunctionWithDecorationsaration prefix decoration, i.e "virtual"
         @param postfixDecaration {string} Valid C/C++ declaration postfix decoration, i.e "const" | "override" ...
         @param longDesc {string or None} Long description of the function
 
@@ -166,17 +176,9 @@ class GenerateCppFileHelper(object):
             funcLine += prefixDecaration
             funcLine += " "
 
-        # Create function definition line            inlineStart = "{".rjust(indent, ' ')
-
-        funcLine = ParamRetDict.getParamType(retDict)+" "+name+"("
-        paramPrefix = ""
-        for paramDict in paramDictList:
-             funcLine += paramPrefix
-             funcLine += ParamRetDict.getParamType(paramDict)
-             funcLine += " "
-             funcLine += ParamRetDict.getParamName(paramDict)
-             paramPrefix = ", "
-        funcLine += ")"
+        # Create function definition line
+        funcLine = ParamRetDict.getParamType(retDict)+" "+name
+        funcLine += self.genFunctionParams(paramDictList)
 
         # Add function post fix decorations if defined
         if postfixDecaration is not None:
@@ -194,7 +196,7 @@ class GenerateCppFileHelper(object):
         """
         return ("} // end of "+name+"()\n")
 
-    def _generateFileHeader(self, autotoolname, startYear=2025, owner = None):
+    def _generateGenericFileHeader(self, autotoolname, startYear=2025, owner = None):
         """!
         @brief Generate the boiler plate file header with copyright and eula
 
@@ -321,7 +323,8 @@ class GenerateCppFileHelper(object):
         """
         return ["}; // end of "+className+" class\n"]
 
-    def genClassDefaultConstructorDestructor(self, className, indent = 8, virtualDestructor = False, noDoxyCommentConstructor = False):
+    def genClassDefaultConstructorDestructor(self, className, indent = 8, virtualDestructor = False,
+                                             noDoxyCommentConstructor = False, noCopy = False):
         """!
         @brief Generate default constructor(s)/destructor declarations for a class
 
@@ -331,6 +334,8 @@ class GenerateCppFileHelper(object):
                                            True if virtual decoration on destructor
         @param noDoxyCommentConstructor {boolean} Doxygen comment disable. False = generate doxygen comments,
                                                   True = ommit comments
+        @param noCopy {boolean} Disable copy constructors, True: copy/move constructors = delete
+                                                           False: copy/move constructors = default
         @return list of strings - Code to output
         """
         # Setup params for the different constructors
@@ -338,6 +343,12 @@ class GenerateCppFileHelper(object):
         otherMove = [ParamRetDict.buildParamDict("other", className+"&&", "Reference to object to move")]
         equateReturn = ParamRetDict.buildReturnDict(className+"&", "*this")
         destructorPrefix = None
+
+        if noCopy:
+            copyConstructorPostfix = "= delete"
+        else:
+            copyConstructorPostfix = "= default"
+
         if virtualDestructor:
             destructorPrefix = "virtual"
 
@@ -361,7 +372,7 @@ class GenerateCppFileHelper(object):
                                                             indent,
                                                             noDoxyCommentConstructor,
                                                             None,
-                                                            "= default"))
+                                                            copyConstructorPostfix))
 
         if not noDoxyCommentConstructor:
             codeText.append("\n")      #whitespace for readability
@@ -374,7 +385,7 @@ class GenerateCppFileHelper(object):
                                                             indent,
                                                             noDoxyCommentConstructor,
                                                             None,
-                                                            "= default"))
+                                                            copyConstructorPostfix))
 
         if not noDoxyCommentConstructor:
             codeText.append("\n")      #whitespace for readability
@@ -387,7 +398,7 @@ class GenerateCppFileHelper(object):
                                                             indent,
                                                             noDoxyCommentConstructor,
                                                             None,
-                                                            "= default"))
+                                                            copyConstructorPostfix))
 
         if not noDoxyCommentConstructor:
             codeText.append("\n")      #whitespace for readability
@@ -400,7 +411,7 @@ class GenerateCppFileHelper(object):
                                                             indent,
                                                             noDoxyCommentConstructor,
                                                             None,
-                                                            "= default"))
+                                                            copyConstructorPostfix))
 
         if not noDoxyCommentConstructor:
             codeText.append("\n")      #whitespace for readability

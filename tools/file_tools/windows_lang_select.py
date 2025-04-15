@@ -85,7 +85,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         paramName = ParamRetDict.getParamName(self.paramDictList[0])
         functionBody = []
         functionBody.append("#if "+self.defDynamicOsString+"\n")
-        functionBody.append(self._genInclude("<Windows.h>"))
+        functionBody.append(self._genInclude("<windows.h>"))
         functionBody.append("\n")  # whitespace for readability
 
         # Generate function doxygen comment and start
@@ -174,6 +174,22 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         testBody.append("}\n")
         return testBody
 
+    def genExternDefinition(self):
+        """!
+        @brief Return the external function definition
+        @return string - External function definition line
+        """
+        externDef = "extern "
+        externDef += self.returnType
+        externDef += " "
+        externDef += self.selectFunctionName
+        externDef += "("
+        externDef += ParamRetDict.getParamType(self.paramDictList[0])
+        externDef += " "
+        externDef += ParamRetDict.getParamName(self.paramDictList[0])
+        externDef += ");\n"
+        return externDef
+
     def genUnitTest(self, getIsoMethod, outfile):
         """!
         @brief Generate all unit tests for the selection function
@@ -184,16 +200,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         # Generate block start code
         blockStart = []
         blockStart.append("#if "+self.defDynamicOsString+"\n")
-        externDef = "extern "
-        externDef += self.returnType
-        externDef += " "
-        externDef += self.selectFunctionName
-        externDef += "("
-        externDef += ParamRetDict.getParamType(self.paramDictList[0])
-        externDef += " "
-        externDef += ParamRetDict.getParamName(self.paramDictList[0])
-        externDef += ");\n"
-        blockStart.append(externDef)
+        blockStart.append(self.genExternDefinition())
         outfile.writelines(blockStart)
 
         # Generate the tests
@@ -254,7 +261,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         getParam += ParamRetDict.getParamType(self.paramDictList[0])
         getParam += " "
         getParam += localVarName
-        getParam += "= GetUserDefaultUILanguage();\n"
+        getParam += " = GetUserDefaultUILanguage();\n"
 
         doCall = indentText
         doCall += self.returnType
@@ -267,6 +274,14 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         doCall += ");\n"
 
         return [getParam, doCall]
+
+    def getUnittestExternInclude(self):
+        incBlock = []
+        incBlock.append("#if "+self.defDynamicOsString+"\n")
+        incBlock.append(self._genInclude("windows.h"))
+        incBlock.append(self.genExternDefinition())
+        incBlock.append("#endif // "+self.defDynamicOsString+"\n")
+        return incBlock
 
     def getUnittestFileName(self):
         """!

@@ -52,6 +52,11 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         @param eulaName {string} EULA text to use in the header message or None to default MIT Open
         """
         super().__init__(owner, eulaName)
+        self.versionMajor = 0
+        self.versionMinor = 9
+        self.versionPatch = 0
+        self.versionTweak = 0
+
         self.jsonLangData = LanguageDescriptionList(jsonLangFileName)
         self.jsonStringsData = StringClassDescription(jsonStringsFilename)
 
@@ -69,6 +74,47 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.masterFunction = MasterSelectFunctionGenerator(self.masterFunctionName,
                                                             StringClassNameGen.getBaseClassName(),
                                                             StringClassNameGen.getDynamicCompileswitch())
+
+        self.hFileName = self._generateHFileName()
+        self.mockHFileName = self._generateMockHFileName()
+        self.cppFileName = self._generateCppFileName()
+        self.staticUnittestFile = self.staticSelect.getUnittestFileName()
+        self.unittestBaseFile = self._generateUnittestFileName()
+        self.unittestSelectFiles = []
+        self.includeSubDir = []
+
+    def getCmakeHFileName(self):
+        return self.hFileName
+
+    def getCmakeIncludeDirs(self):
+        return self.includeSubDir
+
+    def getCmakeLibFileName(self):
+        return self.cppFileName
+
+    def getCmakeBaseUnittestFileName(self):
+        return self.unittestBaseFile
+
+    def getCmakeSelectUnittestFileNames(self):
+        return self.unittestSelectFiles
+
+    def getCmakeMockFileName(self):
+        return self.mockHFileName
+
+    def getCmakeStaticUnittestSets(self):
+        """!
+        @brief Get the static select unit test setup set list
+        @return list of tuples (string, string, string) - Language Name
+                                                          Language Compile switch
+                                                          Static selection unittest file
+        """
+        unittestSets = []
+        languageList = self.jsonLangData.getLanguageList()
+        for languageName in languageList:
+            languageCompileSwitch = self.jsonLangData.getLanguageCompileSwitchData(languageName)
+            unittestSets.append((languageName, languageCompileSwitch, self.staticUnittestFile))
+
+        return unittestSets
 
     def _writeCppFile(self, cppFile):
         """!
@@ -129,7 +175,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         propertyMethodList = self.jsonStringsData.getPropertyMethodList()
         for propertyMethod in propertyMethodList:
             propertyName, propertyDesc, propertyParams, propertyReturn = self.jsonStringsData.getPropertyMethodData(propertyMethod)
-            self._writeMethod(hFile, propertyMethod, propertyDesc, propertyParams, propertyReturn, prefix, postfix, False)
+            hFile.writelines(self._writeMethod(propertyMethod, propertyDesc, propertyParams, propertyReturn, prefix, postfix, False))
             hFile.writelines(["\n"]) # whitespace for readability
 
     def _writeTranslateMethods(self, hFile):
@@ -146,7 +192,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         tranlateMethodList = self.jsonStringsData.getTranlateMethodList()
         for translateMethodName in tranlateMethodList:
             transDesc, transParams, transReturn = self.jsonStringsData.getTranlateMethodFunctionData(translateMethodName)
-            self._writeMethod(hFile, translateMethodName, transDesc, transParams, transReturn, prefix, postfix, False)
+            hFile.writelines(self._writeMethod(translateMethodName, transDesc, transParams, transReturn, prefix, postfix, False))
             hFile.writelines(["\n"]) # whitespace for readability
 
     def _writeBaseHFile(self, hFile):
@@ -189,7 +235,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         # Generate the translated string generation methods
         self._writeTranslateMethods(hFile)
 
-        # Add the documented function declaration
+        # Add the static generation function declaration
         methodName, briefDesc, retDict, paramList = self.masterFunction.getFunctionDesc()
         declText = self.declareFunctionWithDecorations(methodName,
                                                 briefDesc,
@@ -202,6 +248,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         # Close the class and namespace
         hFile.writelines(self.genClassClose(className))
+        hFile.writelines(["\n"]) # whitespace for readability
         hFile.writelines(self.genNamespaceClose(self.nameSpaceName))
 
         # Complete the doxygen group
@@ -289,16 +336,92 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
 
+    def _writeMockFile(self, mockFile):
+        """!
+        @brief Write the OS language selection CPP file
+        @param hFile {File} File to write the data to
+        """
+        # Write the common header datajsonStringsDef
+        mockFile.writelines(self._generateFileHeader())
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        includeList = ["<cstddef>",
+                       "<cstdlib>",
+                       "<memory>",
+                       "<string>",
+                       "<gmock/gmock.h>",
+                       self._generateHFileName()
+                       ]
+        mockFile.writelines(self.genIncludeBlock(includeList))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        mockFile.writelines(self.doxyCommentGen.genDoxyDefgroup(StringClassNameGen.getBaseClassName()+".h", self.groupName, self.groupDesc))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        mockFile.writelines(self.genNamespaceOpen(self.nameSpaceName))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        # Start class definition
+        className = StringClassNameGen.getBaseClassName()
+        mockFile.writelines(self.genClassOpen("mock_"+className,
+                                              "Mock Parser error/help string generation interface",
+                                              "public "+className,
+                                              "final"))
+        mockFile.writelines(["    public:\n"])
+
+        # Add default Constructor/destructor definitions
+        mockFile.writelines(self.genClassDefaultConstructorDestructor(className,
+                                                                      self.declareIndent,
+                                                                      True,
+                                                                      True,
+                                                                      True))
+
+        # Generate the property fetch methods
+        postfix = "final"
+        propertyMethodList = self.jsonStringsData.getPropertyMethodList()
+        for propertyMethod in propertyMethodList:
+            propertyName, propertyDesc, propertyParams, propertyReturn = self.jsonStringsData.getPropertyMethodData(propertyMethod)
+            mockFile.writelines(self._writeMockMethod(propertyMethod, propertyParams, propertyReturn, postfix))
+
+        # Generate the translated string generation methods
+        tranlateMethodList = self.jsonStringsData.getTranlateMethodList()
+        for translateMethodName in tranlateMethodList:
+            transDesc, transParams, transReturn = self.jsonStringsData.getTranlateMethodFunctionData(translateMethodName)
+            mockFile.writelines(self._writeMockMethod(translateMethodName, transParams, transReturn, postfix))
+
+        # Close the class and namespace
+        mockFile.writelines(self.genClassClose(className))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        # Add the OS local language fetch override
+        selectMethodName, selectBriefDesc, selectRetDict, selectParamList = self.masterFunction.getFunctionDesc()
+
+        functionDef = self.defineFunctionWithDecorations(self.baseClassName+"::"+selectMethodName,
+                                                         selectBriefDesc,
+                                                         selectParamList,
+                                                         selectRetDict,
+                                                         True)
+
+        functionDef.append("{return std::make_shared<mock_"+className+">();}\n")
+        functionDef.append("\n")  # whitespace for readability
+
+        mockFile.writelines(functionDef)
+        mockFile.writelines(self.genNamespaceClose(self.nameSpaceName))
+
+        # Complete the doxygen group
+        mockFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
+
     def generateCppFile(self, baseDirectory = "../output", subdir="src"):
         """!
         @brief Generate the base strings class selection implementation file
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to put the unittest source file into
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = False
         retFileName = os.path.join(subdir, self._generateCppFileName())
+        self.cppFileName = retFileName
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -308,18 +431,21 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
             returnStatus = True
         except:
             print("ERROR: Unable to open "+writeFileName+" for writing!")
-        return returnStatus, retFileName
+
+        return returnStatus
 
     def generateBaseHFile(self, baseDirectory = "../output", subdir="inc"):
         """!
         @brief Generate the base strings class include file
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to put the unittest include file into
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = False
         retFileName = os.path.join(subdir, self._generateHFileName())
+        self.includeSubDir.append(subdir)
+        self.hFileName = retFileName
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -329,18 +455,20 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
             returnStatus = True
         except:
             print("ERROR: Unable to open "+writeFileName+" for writing!")
-        return returnStatus, retFileName
+
+        return returnStatus
 
     def generateUnittestFile(self, baseDirectory = "../output", subdir="test"):
         """!
         @brief Generate the base strings class unit test file
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to put the unittest source files into
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
         retFileName = os.path.join(subdir, self._generateUnittestFileName())
+        self.unittestBaseFile = retFileName
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -351,7 +479,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
             print("ERROR: Unable to open "+writeFileName+" for writing!")
             returnStatus = False
 
-        return returnStatus, retFileName
+        return returnStatus
 
     def generateOsSelectUnittestFile(self, langSelectObject, baseDirectory = "../output", subdir="test"):
         """!
@@ -359,11 +487,12 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         @param langSelectObject {object} OS local language select object
         @param baseDirectory {string} Base File output directory
         @param subdir {string} Subdirectory to put the unittest source files into
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file
+        @return boolean - True for pass, else false for failure
         """
         returnStatus = True
         retFileName = os.path.join(subdir, langSelectObject.getUnittestFileName())
+        self.unittestSelectFiles.append(retFileName)
+
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
             # open the file
@@ -374,55 +503,88 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
             print("ERROR: Unable to open "+writeFileName+" for writing!")
             returnStatus = False
 
-        return returnStatus, retFileName
+        return returnStatus
 
     def generateOsSelectUnittestFiles(self, baseDirectory = "../output", testSubDir="test"):
         """!
         @brief Generate all OS local language select unit test files
         @param baseDirectory {string} Base File output directory
         @param testSubDir {string} Subdirectory to place unit test files in
-        @return tuple - boolean = True for pass, else false for failure
-                        list of strings = Sub-path/name of the generated unit test cpp files
+        @return boolean - True for pass, else false for failure
         """
         selectStatus = True
-        selectUnittestFiles = []
         for langSelect in self.osLangSelectList:
-            osSelectStatus, osSelectUnittestFile = self.generateOsSelectUnittestFile(langSelect, baseDirectory, testSubDir)
-            if osSelectStatus:
-                selectUnittestFiles.append(osSelectUnittestFile)
-            else:
+            osSelectStatus = self.generateOsSelectUnittestFile(langSelect, baseDirectory, testSubDir)
+            if not osSelectStatus:
                 selectStatus = False
 
-        return selectStatus, selectUnittestFiles
+        return selectStatus
 
     def generateStaticSelectUnittestFile(self, baseDirectory = "../output", testSubDir="test"):
         """!
         @brief Generate all OS local language select unit test files
         @param baseDirectory {string} Base File output directory
         @param testSubDir {string} Subdirectory to place unit test files in
-        @return tuple - boolean = True for pass, else false for failure
-                        list of strings = Sub-path/name of the generated unit test cpp files
+        @return boolean - True for pass, else false for failure
         """
-        return self.generateOsSelectUnittestFile(self.staticSelect, baseDirectory, testSubDir)
+        returnStatus = True
+        retFileName = os.path.join(testSubDir, self.staticSelect.getUnittestFileName())
+        self.staticUnittestFile = retFileName
 
-    def genBaseFiles(self, baseDirectory = "../output", incSubdir = "inc", srcSubdir="src", testSubDir="test"):
+        writeFileName = os.path.join(baseDirectory, retFileName)
+        try:
+            # open the file
+            unittestFile = open(writeFileName, 'w', encoding='utf-8')
+            self._writeSelectUnittestFile(self.staticSelect, unittestFile)
+            unittestFile.close()
+        except:
+            print("ERROR: Unable to open "+writeFileName+" for writing!")
+            returnStatus = False
+
+        return returnStatus
+
+    def generateMockFile(self, baseDirectory = "../output", subdir="mock"):
+        """!
+        @brief Generate the base strings class unit test file
+        @param baseDirectory {string} Base File output directory
+        @param subdir {string} Subdirectory to put the mock files into
+        @return boolean - True for pass, else false for failure
+        """
+        returnStatus = True
+        retFileName = os.path.join(subdir, self._generateMockHFileName())
+        self.mockHFileName = retFileName
+
+        writeFileName = os.path.join(baseDirectory, retFileName)
+        try:
+            # open the file
+            mockFile = open(writeFileName, 'w', encoding='utf-8')
+            self._writeMockFile(mockFile)
+            mockFile.close()
+        except:
+            print("ERROR: Unable to open "+writeFileName+" for writing!")
+            returnStatus = False
+
+        return returnStatus
+
+    def genBaseFiles(self, baseDirectory = "../output", incSubdir = "inc", srcSubdir="src", testSubDir="test", mockSubDir = "mock"):
         """!
         @brief Generate all language specific strings class files
+
         @param baseDirectory {string} Base File output directory
         @param incSubdir {string} Subdirectory to place include files in
         @param srcSubdir {string} Subdirectory to place cpp source files in
         @param testSubDir {string} Subdirectory to place unit test files in
-        @return tuple - boolean = True for pass, else false for failure
-                        string = Sub-path/name of the generated file h file
-                        string = Sub-path/name of the generated file cpp file
-                        string = Sub-path/name of the generated file unit test cpp file
+        @param mockSubDir {string} Subdirectory to place mock files  for external unit tests in
+
+        @return boolean = True for pass, else false for failure
         """
-        hstatus, hfile = self.generateBaseHFile(baseDirectory, incSubdir)
-        cppstatus, cppFile = self.generateCppFile(baseDirectory, srcSubdir)
-        unitStatus, unittestFile = self.generateUnittestFile(baseDirectory, testSubDir)
+        hstatus = self.generateBaseHFile(baseDirectory, incSubdir)
+        cppstatus = self.generateCppFile(baseDirectory, srcSubdir)
+        unitStatus = self.generateUnittestFile(baseDirectory, testSubDir)
+        mockStatus = self.generateMockFile(baseDirectory, mockSubDir)
 
-        selectStatus, selectUnittestFiles = self.generateOsSelectUnittestFiles(baseDirectory, testSubDir)
-        staticSelectStatus, staticSelectFile = self.generateStaticSelectUnittestFile(baseDirectory, testSubDir)
+        selectStatus = self.generateOsSelectUnittestFiles(baseDirectory, testSubDir)
+        staticSelectStatus = self.generateStaticSelectUnittestFile(baseDirectory, testSubDir)
 
-        status = cppstatus and hstatus and unitStatus and selectStatus and staticSelectStatus
-        return status, hfile, cppFile, unittestFile, selectUnittestFiles, staticSelectFile
+        status = cppstatus and hstatus and unitStatus and selectStatus and staticSelectStatus and mockStatus
+        return status

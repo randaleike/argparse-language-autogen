@@ -34,11 +34,26 @@ from file_tools.common.eula import eula
 from base_string_class import GenerateBaseLangFiles
 from lang_string_class import GenerateLangFiles
 
-def GenerateCmake(baseFileTuple, langFileListTuple, filePath):
-    ## @todo implement this
-    pass
+def GenerateCmake(baseFileGen, langFileGen, filePath):
+    """!
+    @brief Generate the subdir makefile
+    """
 
-def GenerateLanguageSelectFiles(jsonLangFileName, jsonStringsFilename, filePath, incfileSubdir, srcfileSubdir, tstfileSubdir, owner, eulaName):
+    writeFileName = os.path.join(filePath, "CMakeLists.txt")
+    try:
+        # open the file
+        mockFile = open(writeFileName, 'w', encoding='utf-8')
+        mockFile.close()
+    except:
+        print("ERROR: Unable to open "+writeFileName+" for writing!")
+        returnStatus = False
+
+    return returnStatus
+
+
+def GenerateLanguageSelectFiles(jsonLangFileName, jsonStringsFilename, filePath,
+                                incfileSubdir, srcfileSubdir, tstfileSubdir, mockfileSubdir,
+                                owner, eulaName):
     """!
     @brief Generate the string files
 
@@ -48,30 +63,32 @@ def GenerateLanguageSelectFiles(jsonLangFileName, jsonStringsFilename, filePath,
     @param incfileSubdir {string} path to put the include generated files
     @param srcfileSubdir {string} path to put the cpp source generated files
     @param tstfileSubdir {string} path to put the unit test generated files
+    @param mockfileSubdir {string} path to put the unit test mock generated files
     @param owner {string} Owner name to use in the copyright header message or None to use tool name
     @param eulaName {string} EULA text to use in the header message or None to default MIT Open
     """
     # Generate the base string files
     baseFileGen = GenerateBaseLangFiles(jsonLangFileName, jsonStringsFilename, owner, eulaName)
-    cppStatus, cppFileName = baseFileGen.generateCppFile(filePath, srcfileSubdir)
-    hStatus, hFileName = baseFileGen.generateBaseHFile(filePath, incfileSubdir)
-    unittestStatus, unitTestFileName = baseFileGen.generateUnittestFile(filePath, tstfileSubdir)
-    selectStatus, selectUnitTestFiles = baseFileGen.generateOsSelectUnittestFiles(filePath, tstfileSubdir)
-    staticStatus, staticUnitTestFile = baseFileGen.generateStaticSelectUnittestFile(filePath, tstfileSubdir)
+    baseStatus = baseFileGen.genBaseFiles(filePath, incfileSubdir, srcfileSubdir, tstfileSubdir, mockfileSubdir)
 
     langFileGen = GenerateLangFiles(jsonLangFileName, jsonStringsFilename, owner, eulaName)
-    langHStatus, langHFileNames = langFileGen.generateLangHFiles(filePath, incfileSubdir)
-    langCppStatus, langCppFileNames = langFileGen.generateLangCppFiles(filePath, srcfileSubdir)
-    langtestStatus, langTestFileName = langFileGen.generateLangUnittestFiles(filePath, tstfileSubdir)
+    langStatus = langFileGen.generateLangFiles(filePath, incfileSubdir, srcfileSubdir, tstfileSubdir)
 
-    if (hStatus and cppStatus and unittestStatus and
-        langHStatus and langCppStatus and langtestStatus and
-        selectStatus and staticStatus):
-        GenerateCmake((hFileName, cppFileName, unitTestFileName, selectUnitTestFiles, staticUnitTestFile),
-                      (langHFileNames, langCppFileNames, langTestFileName),
-                      filePath)
-    else:
-        SystemExit(5)
+    if (baseStatus and langStatus):
+        GenerateCmake(baseFileGen, langFileGen, filePath, [incfileSubdir])
+
+def MakeSubdir(basefilePath, subDirName):
+    """!
+    @brief Make the subdirectory within the output directory if it doesn't
+           already exist
+    @return pass or ValueError if basefilePath/subDirName already exists as a file
+    """
+    testPath = os.path.join(basefilePath, subDirName)
+    if not os.path.exists(testPath):
+        os.makedirs(testPath)
+    elif not os.path.isdir(testPath):
+        raise ValueError("Error: \""+testPath+"\" already exists as file.")
+    pass
 
 def CommandMain():
     """!
@@ -89,6 +106,7 @@ def CommandMain():
             eulaHelp += '|'
         eulaHelp += name
     eulaHelp+=']'
+    SystemExit(error)
 
     parser = argparse.ArgumentParser(prog="autogenlang",
                                      description="Update argpaser library language string h/cpp/unittest files")
@@ -104,29 +122,12 @@ def CommandMain():
     if not os.path.exists(basefilePath):
         os.makedirs(basefilePath)
     elif not os.path.isdir(basefilePath):
-        print("Error: \""+basefilePath+"\" already exists as file.")
-        SystemExit(1)
+        raise ValueError("Error: \""+basefilePath+"\" already exists as file.")
 
-    srcfilePath = os.path.join(basefilePath, 'src')
-    if not os.path.exists(srcfilePath):
-        os.makedirs(srcfilePath)
-    elif not os.path.isdir(srcfilePath):
-        print("Error: \""+srcfilePath+"\" already exists as file.")
-        SystemExit(2)
-
-    incfilePath = os.path.join(basefilePath, 'inc')
-    if not os.path.exists(incfilePath):
-        os.makedirs(incfilePath)
-    elif not os.path.isdir(incfilePath):
-        print("Error: \""+incfilePath+"\" already exists as file.")
-        SystemExit(3)
-
-    unittestfilePath = os.path.join(basefilePath, 'test')
-    if not os.path.exists(unittestfilePath):
-        os.makedirs(unittestfilePath)
-    elif not os.path.isdir(unittestfilePath):
-        print("Error: \""+unittestfilePath+"\" already exists as file.")
-        SystemExit(4)
+    MakeSubdir(basefilePath, 'inc')
+    MakeSubdir(basefilePath, 'src')
+    MakeSubdir(basefilePath, 'test')
+    MakeSubdir(basefilePath, 'mock')
 
     # Generate the files
     GenerateLanguageSelectFiles(FileNameGenerator.getLanguageDescriptionFileName("../data"),
@@ -135,10 +136,9 @@ def CommandMain():
                                 'inc',
                                 'src',
                                 'test',
+                                'mock',
                                 args.owner,
                                 args.eula)
-    SystemExit(error)
-
 
 if __name__ == '__main__':
     CommandMain()

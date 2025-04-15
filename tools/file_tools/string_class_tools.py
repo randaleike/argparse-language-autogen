@@ -83,12 +83,16 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
         functionDef.append("{\n")
         return functionDef
 
-    def genMakePtrReturnStatement(self, classMod):
+    def genMakePtrReturnStatement(self, classMod = None):
         """!
         @brief Generate a language select return statement
         @param classMod {string} Language name of the final parser string object
         """
-        ptrName = self.baseClassName+classMod.capitalize()
+        if classMod is not None:
+            ptrName = self.baseClassName+classMod.capitalize()
+        else:
+            ptrName = self.baseClassName
+
         retLine = "return std::make_shared<"
         retLine += ptrName
         retLine += ">();\n"
@@ -181,9 +185,11 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         """
         super().__init__(eulaName, StringClassNameGen.getBaseClassName())
         self.owner = owner
-        self.versionMajor = 0
-        self.versionMinor = 5
-        self.autoToolName = self.__class__.__name__+str(self.versionMajor)+"."+str(self.versionMinor)
+        self.versionMajor = 1
+        self.versionMinor = 0
+        self.versionPatch = 0
+        self.versionTweak = 0
+        self.autoToolName = self.__class__.__name__+self.getVersion()
 
         self.doxyCommentGen = CDoxyCommentGenerator()
         self.groupName = "LocalLanguageSelection"
@@ -193,11 +199,14 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         self.declareIndent = 8
         self.functionIndent = 4
 
+    def getVersion(self):
+        return "V"+str(self.versionMajor)+"."+str(self.versionMinor)+"."+str(self.versionPatch)+"."+str(self.versionTweak)
+
     def _generateFileHeader(self):
         """!
         @brief Generate the boiler plate file header with copyright and eula
         """
-        return super()._generateFileHeader(self.autoToolName, 2025, self.owner)
+        return super()._generateGenericFileHeader(self.autoToolName, 2025, self.owner)
 
     def _generateHFileName(self, langName = None):
         if langName is not None:
@@ -217,13 +226,18 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         else:
             return StringClassNameGen.getBaseClassName()+"_test.cpp"
 
-    def _writeMethod(self, hFile, methodName, methodDesc,
+    def _generateMockHFileName(self, langName = None):
+        if langName is not None:
+            return "mock_"+StringClassNameGen.getLangClassName(langName)+".h"
+        else:
+            return "mock_"+StringClassNameGen.getBaseClassName()+".h"
+
+    def _writeMethod(self, methodName, methodDesc,
                      methodParams, returnDict, prefix, postfix,
                      skipDoxygenComment = True, inlineCode = None):
         """!
         @brief Write the property method definitions
 
-        @param hFile {File} File to write the data to
         @param methodName {string} Property method name
         @param methodDesc {string} Property description for doxygen comment block
         @param methodParams {list of dictionaries} Method input parameter definitions(s)
@@ -232,6 +246,8 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         @param postfix {string} Method declaration postfix
         @param skipDoxygenComment {boolean} True = skip doxygen method comment generation, False = generate doxygen method comment
         @param inlineCode {list of strings} Inline code strings or None if there is no inline code
+
+        @return list of strings
         """
         # Translate the return type
         xlatedRetDict, isText = self.xlateReturnDict(returnDict)
@@ -258,4 +274,50 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
                                                        postfixFinal,
                                                        inlineCode)
 
-        hFile.writelines(declText)
+        return declText
+
+    def _writeMockMethod(self, methodName, methodParams, returnDict, postfix):
+        """!
+        @brief Write the property method definitions
+
+        @param methodName {string} Property method name
+        @param methodParams {list of dictionaries} Method input parameter definitions(s)
+        @param returnDict {dictionary} Return data definition
+        @param postfix {string} Method declaration postfix
+
+        @return list of strings - Mock method declaration
+        """
+        # Translate the return type
+        xlatedRetDict, isText = self.xlateReturnDict(returnDict)
+
+        # Translate the param data
+        xlatedParams = []
+        if len(methodParams) == 0:
+            if postfix is not None:
+                postfixFinal = "const, " + postfix
+            else:
+                postfixFinal = "const"
+        else:
+            postfixFinal = postfix
+            xlatedParams = self.xlateParamList(methodParams)
+
+        # Output mock declaration
+        declText = "".rjust(self.declareIndent, ' ')
+        declText += "MOCK_METHOD("
+        declText += ParamRetDict.getReturnType(xlatedRetDict)
+        declText += ", "
+        declText += methodName
+        declText += ", "
+
+        # Add the parameters
+        declText += self.genFunctionParams(xlatedParams)
+
+        # Add the post fix data
+        if postfixFinal is not None:
+            declText += ", ("
+            declText += postfixFinal
+            declText += ")"
+
+        # Close the MOCK_METHOD macro and out put to file
+        declText += ");\n"
+        return [declText]
