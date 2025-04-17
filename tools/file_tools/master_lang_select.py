@@ -171,12 +171,12 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
 
         # Complete the function
         testBody.append("#endif // defined os and defined("+self.dynamicCompileSwitch+")\n")
-        getExpectedVal = expectedParser+"."+getIsoMethod+"().c_str()"
-        testVarTest = testVar+"."+getIsoMethod+"().c_str()"
+        getExpectedVal = expectedParser+"->"+getIsoMethod+"().c_str()"
+        testVarTest = testVar+"->"+getIsoMethod+"().c_str()"
         testBody.append("\n") # whitespace for readability
 
         testBody.append(bodyIndent+"// Generate the test language string object\n")
         testBody.append(bodyIndent+testVarDecl+" = "+self.selectFunctionName+"();\n")
-        testBody.append(bodyIndent+"EXPECT_STREQ("+getExpectedVal+", "+testVarTest+";\n")
+        testBody.append(bodyIndent+"EXPECT_STREQ("+getExpectedVal+", "+testVarTest+");\n")
         testBody.append(self.genFunctionEnd())
         outfile.writelines(testBody)

@@ -209,6 +209,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         hFile.writelines(["\n"]) # whitespace for readability
         hFile.writelines(self.doxyCommentGen.genDoxyDefgroup(StringClassNameGen.getBaseClassName()+".h", self.groupName, self.groupDesc))
+        hFile.writelines(["#pragma once\n"])
 
         hFile.writelines(["\n",
                         "using "+StringClassNameGen.getParserStringType()+" = std::string;          ///< Standard parser string definition\n",
@@ -357,6 +358,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         mockFile.writelines(self.doxyCommentGen.genDoxyDefgroup(StringClassNameGen.getBaseClassName()+".h", self.groupName, self.groupDesc))
         mockFile.writelines(["\n"]) # whitespace for readability
+        mockFile.writelines(["#pragma once\n"])
 
         mockFile.writelines(self.genNamespaceOpen(self.nameSpaceName))
         mockFile.writelines(["\n"]) # whitespace for readability

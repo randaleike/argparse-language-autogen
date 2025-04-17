@@ -55,35 +55,52 @@ class GenerateLangFiles(BaseStringClassGenerator):
         self.jsonStringsData = StringClassDescription(jsonStringsFilename)
         self.nameSpaceName = StringClassNameGen.getNamespaceName()
 
-        self.langHFileNames = []
-        self.langCppFileNames = []
-        self.langUnittestFileNames = []
+        self.langFileNames = {}
         self.includeSubDir = []
 
+    def _addFile(self, languageName, fileType, fileName):
+        if languageName in self.langFileNames:
+            self.langFileNames[languageName][fileType] = fileName
+        else:
+            self.langFileNames[languageName] = {}
+            self.langFileNames[languageName][fileType] = fileName
+
+
     def getCmakeLangHFileNames(self):
-        return self.langHFileNames
+        fileList = []
+        for languageName, fileDict in self.langFileNames.items():
+            fileList.append(fileDict['includeFile'])
+        return fileList
 
     def getCmakeIncludeDirs(self):
         return self.includeSubDir
 
     def getCmakeLangLibFileNames(self):
-        return self.langCppFileNames
+        fileList = []
+        for languageName, fileDict in self.langFileNames.items():
+            fileList.append(fileDict['sourceFile'])
+        return fileList
 
     def getCmakeCppUnitTestLangFiles(self, languageName):
-        return self.langCppFileNames[languageName], self.langUnittestFileNames[languageName]
+        if languageName in self.langFileNames:
+            return self.langFileNames[languageName]['sourceFile'], self.langFileNames[languageName]['unittestFile']
+        else:
+            return None, None
 
     def getCmakeCppUnitTestSets(self):
         """!
         @brief Get the language unit test requirements list
         @return list of tuples (string, string, string) - Language name,
                                                           CPP files name,
-                                                          Unit test CPP file name
+                                                          Unit test CPP file name,
+                                                          Unit test target name
         """
         unittestSets = []
         languageList = self.jsonLangData.getLanguageList()
         for languageName in languageList:
             cppFile, unittestFile = self.getCmakeCppUnitTestLangFiles(languageName)
-            unittestSets.append((languageName, cppFile, unittestFile))
+            cmakeTargetName = self._generateUnittestTargetName(languageName)
+            unittestSets.append((languageName, cppFile, unittestFile, cmakeTargetName))
 
         return unittestSets
 
@@ -291,6 +308,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
                        StringClassNameGen.getBaseClassName()+".h",]
         hFile.writelines(self.genIncludeBlock(includeList))
         hFile.writelines(["\n"]) # whitespace for readability
+        hFile.writelines(["#pragma once\n"])
 
         # Set the class name
         className = StringClassNameGen.getLangClassName(langName)
@@ -465,8 +483,13 @@ class GenerateLangFiles(BaseStringClassGenerator):
                 return "\"integer\""
             else:
                 return "integer"
+        elif paramName == "valueString":
+            if isInput:
+                return "\"5\""
+            else:
+                return "5"
         else:
-            return "5"
+            return "6"
 
     def _generateTranslateUnittest(self, translateMethodName, langName):
         """!
@@ -592,7 +615,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         """
         returnStatus = True
         retFileName = os.path.join(subdir, self._generateHFileName(languageName))
-        self.langHFileNames.append({languageName: retFileName})
+        self._addFile(languageName, 'includeFile', retFileName)
 
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
@@ -615,7 +638,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         """
         returnStatus = True
         retFileName = os.path.join(subdir, self._generateCppFileName(languageName))
-        self.langCppFileNames.append({languageName: retFileName})
+        self._addFile(languageName, 'sourceFile', retFileName)
 
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
@@ -637,8 +660,8 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        retFileName = os.path.join(subdir, self._generateCppFileName(languageName))
-        self.langUnittestFileNames.append({languageName: retFileName})
+        retFileName = os.path.join(subdir, self._generateUnittestFileName(languageName))
+        self._addFile(languageName, 'unittestFile', retFileName)
 
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
@@ -660,7 +683,6 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        self.langHFileNames = []
         languageList = self.jsonLangData.getLanguageList()
         self.includeSubDir.append(subdir)
 
@@ -681,7 +703,6 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        self.langCppFileNames = []
         languageList = self.jsonLangData.getLanguageList()
 
         for languageName in languageList:
@@ -701,7 +722,6 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        self.langUnittestFileNames = []
         languageList = self.jsonLangData.getLanguageList()
 
         for languageName in languageList:

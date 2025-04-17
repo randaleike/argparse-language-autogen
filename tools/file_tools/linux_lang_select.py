@@ -133,6 +133,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         functionBody.append(if1BodyIndent+"}\n")
 
         # Add the else if nullptr case
+        functionBody.append(bodyIndent+"}\n")
         functionBody.append(bodyIndent+"else // null pointer input, use default language\n")
         functionBody.append(bodyIndent+"{\n")
         functionBody.append(if1BodyIndent+self.genMakePtrReturnStatement(defaultLang))

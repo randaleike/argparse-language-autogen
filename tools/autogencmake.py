@@ -48,6 +48,69 @@ class CmakeGenerator(object):
         self.versionPatch = 0
         self.versionTweak = 0
         self.incfileSubdir = incfileSubdir
+        self.dynamicSelectionSwitch = "-D"+StringClassNameGen.getDynamicCompileswitch()
+
+    def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True):
+        """!
+        @brief Generate the language file unittest executable build
+
+        @param desciption {string} Language name
+        @param sourceFiles {list of string} CPP file names
+        @param targetName {string} Target unit test executable name
+        @param includeDir {string} Include directory list cmake macro name
+        @param incCoverage {boolean} True = include unit test coverage code,
+                                     False = Don't include unit test coverage code
+
+        @return list of strings - Build cmake code
+        """
+        buildCode=[]
+        fileList=""
+        for cppFile in sourceFiles:
+            fileList+=" "
+            fileList+=cppFile
+
+        buildCode.append("####\n")
+        buildCode.append("# "+desciption+" unit test build\n")
+        buildCode.append("####\n")
+        buildCode.append("add_executable("+targetName+" "+fileList+")\n")
+        buildCode.append("target_include_directories("+targetName+" PUBLIC ${"+includeDir+"} ${GTEST_INCLUDE_DIR})\n")
+        buildCode.append("target_link_libraries("+targetName+" PRIVATE ${GTEST_LIBRARIES})\n")
+        buildCode.append("target_compile_options("+targetName+" PUBLIC -DGTEST_LINKED_AS_SHARED_LIBRARY=1)\n")
+        buildCode.append("target_compile_options("+targetName+" PUBLIC "+self.dynamicSelectionSwitch+")\n")
+        if incCoverage:
+            buildCode.append("if((${CMAKE_SYSTEM_NAME} MATCHES \"Linux\") AND (CMAKE_BUILD_TYPE MATCHES \"^[Dd]ebug\"))\n")
+            buildCode.append("    target_compile_options("+targetName+" PRIVATE --coverage)\n")
+            buildCode.append("    target_link_options("+targetName+" PRIVATE --coverage)\n")
+            buildCode.append("endif()\n")
+        buildCode.append("\n") #whitespace for readability
+
+        testListName = targetName+"AllTests"
+        buildCode.append("gtest_add_tests (TARGET "+targetName+" TEST_LIST "+testListName+")\n")
+        buildCode.append("\n") #whitespace for readability
+
+        buildCode.append("if(${CMAKE_SYSTEM_NAME} MATCHES \"Windows\")\n")
+        buildCode.append("    set_tests_properties(${"+testListName+"} PROPERTIES ENVIRONMENT \"PATH=$<SHELL_PATH:$<TARGET_FILE_DIR:gtest>>$<SEMICOLON>$ENV{PATH}\")\n")
+        buildCode.append("endif()\n")
+
+        return buildCode
+
+    def _generateLangUnittestBuild(self, languageName, cppFile, unittestFile, targetName, includeDir, incCoverage = True):
+        """!
+        @brief Generate the language file unittest executable build
+
+        @param languageName {string} Language name
+        @param cppFile {string} Language CPP file name
+        @param unittestFile {string} Language unit test CPP filename
+        @param targetName {string} Target unit test executable name
+        @param includeDir {string} Include directory list cmake macro name
+        @param incCoverage {boolean} True = include unit test coverage code,
+                                     False = Don't include unit test coverage code
+
+        @return list of strings - Build cmake code
+        """
+        sourceList = [cppFile, unittestFile]
+        description = languageName+" string"
+        return self._generateUnittestBuild(description, sourceList, targetName, includeDir, incCoverage)
 
     def generateCmakeFile(self, cmakeFile):
         """!
@@ -95,70 +158,46 @@ class CmakeGenerator(object):
         cmakeFile.writelines(["####\n"])
         cmakeFile.writelines(["set ("+projectBaseInclude+"\n"])
         for dir in self.incfileSubdir:
-            cmakeFile.writelines(["    ${CMAKE_CURRENT_LIST_DIR}/"+dir+"\n"])
-        cmakeFile.writelines(["    )\n"])
+            cmakeFile.writelines(["     ${CMAKE_CURRENT_LIST_DIR}/"+dir+"\n"])
+        cmakeFile.writelines(["     )\n"])
         cmakeFile.writelines(["\n"]) # whitespace for readability
 
         projectBaseSrc = projectName+"_baseSrc"
         cmakeFile.writelines(["set ("+projectBaseSrc+"\n"])
-        for fileName in self.libSrcFileList:
-            cmakeFile.writelines(["    ${CMAKE_CURRENT_LIST_DIR}/"+fileName+"\n"])
-        cmakeFile.writelines(["    )\n"])
+        for fileName in libSrcFileList:
+            cmakeFile.writelines(["     ${CMAKE_CURRENT_LIST_DIR}/"+fileName+"\n"])
+        cmakeFile.writelines(["     )\n"])
         cmakeFile.writelines(["\n"]) # whitespace for readability
 
         cmakeFile.writelines(["####\n"])
         cmakeFile.writelines(["# "+projectName+" library\n"])
         cmakeFile.writelines(["####\n"])
         cmakeFile.writelines(["add_library(${PROJECT_NAME} STATIC ${"+projectBaseSrc+"})\n"])
+        cmakeFile.writelines(["target_compile_options(${PROJECT_NAME} PUBLIC "+self.dynamicSelectionSwitch+")\n"])
         cmakeFile.writelines(["target_include_directories(${PROJECT_NAME} PRIVATE ${"+projectBaseInclude+"})\n"])
         cmakeFile.writelines(["set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})\n"])
         cmakeFile.writelines(["\n"]) # whitespace for readability
 
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["# "+projectName+" Unit tests\n"])
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["enable_testing()\n"])
+        cmakeFile.writelines(["include(GoogleTest)\n"])
+        cmakeFile.writelines(["\n"])
+
+        # Output Language file unit test build
+        languageUnitTestList = self.langFileGen.getCmakeCppUnitTestSets()
+        for (languageName, cppFile, unittestFile, targetName) in languageUnitTestList:
+            cmakeCode = self._generateLangUnittestBuild(languageName, cppFile, unittestFile, targetName, projectBaseInclude)
+            cmakeFile.writelines(cmakeCode)
+            cmakeFile.writelines(["\n"])
+
+        # Output OS language select unit test build
+        #for osLangSelect in self.osLangSelect
+
+        # Output Base unittest
         projectBaseUnittest = projectName+"_baseUnittest"
-        cmakeFile.writelines(["####\n"])
-        cmakeFile.writelines(["# "+projectName+" Unit test base\n"])
-        cmakeFile.writelines(["####\n"])
-        cmakeFile.writelines(["set ("+projectBaseSrc+"\n"])
-        for fileName in self.libSrcFileList:
-            cmakeFile.writelines(["    ${CMAKE_CURRENT_LIST_DIR}/"+fileName+"\n"])
-        cmakeFile.writelines(["    )\n"])
-        cmakeFile.writelines(["\n"]) # whitespace for readability
-
-####
-# parser_base Unit testing
-####
-set (parser_baseTest
-    ${CMAKE_CURRENT_LIST_DIR}/test/parser_string_list_test.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/test/parser_base_test.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/test/parser_base_unittest.cpp
-    )
-
-set (parser_baseMockInc
-    ${parser_baseInclude}
-    ${MASTER_PROJECT_BASE_DIR}/varg/mock
-    )
-
-set (parser_baseTestMock
-    )
-
-set (parser_baseExternalLib
-    varg
-    )
-
-enable_testing()
-
-add_executable(${PROJECT_NAME}_test ${parser_baseSrc} ${parser_baseTestMock} ${parser_baseTest})
-target_include_directories(${PROJECT_NAME}_test PUBLIC ${parser_baseInclude} ${parser_baseMockInc} ${GTEST_INCLUDE_DIR} ${GMOCK_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME}_test PRIVATE ${parser_baseExternalLib} ${GTEST_LIBRARIES})
-target_compile_options(${PROJECT_NAME}_test PRIVATE -DGTEST_LINKED_AS_SHARED_LIBRARY=1)
-if((${CMAKE_SYSTEM_NAME} MATCHES "Linux") AND (CMAKE_BUILD_TYPE MATCHES "^[Dd]ebug"))
-    target_compile_options(${PROJECT_NAME}_test PRIVATE --coverage)
-    target_link_options(${PROJECT_NAME}_test PRIVATE --coverage)
-endif()
-
-include(GoogleTest)
-gtest_add_tests(TARGET ${PROJECT_NAME}_test TEST_LIST parserBaseAllTests)
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    set_tests_properties(${parserBaseAllTests} PROPERTIES ENVIRONMENT "PATH=$<SHELL_PATH:$<TARGET_FILE_DIR:gtest>>$<SEMICOLON>$ENV{PATH}")
-endif()
+        sourceList = ["${"+projectBaseSrc+"}", self.baseFileGen.getCmakeBaseUnittestFileName()]
+        cmakeCode = self._generateUnittestBuild(projectBaseUnittest, sourceList, StringClassNameGen.getBaseClassName()+"_test", projectBaseInclude)
+        cmakeFile.writelines(cmakeCode)
+        cmakeFile.writelines(["\n"])

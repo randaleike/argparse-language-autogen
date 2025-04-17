@@ -226,6 +226,12 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         else:
             return StringClassNameGen.getBaseClassName()+"_test.cpp"
 
+    def _generateUnittestTargetName(self, langName = None):
+        if langName is not None:
+            return StringClassNameGen.getLangClassName(langName)+"_test"
+        else:
+            return StringClassNameGen.getBaseClassName()+"_test"
+
     def _generateMockHFileName(self, langName = None):
         if langName is not None:
             return "mock_"+StringClassNameGen.getLangClassName(langName)+".h"

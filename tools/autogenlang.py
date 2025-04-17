@@ -33,19 +33,22 @@ from pathgen import FileNameGenerator
 from file_tools.common.eula import eula
 from base_string_class import GenerateBaseLangFiles
 from lang_string_class import GenerateLangFiles
+from autogencmake import CmakeGenerator
 
-def GenerateCmake(baseFileGen, langFileGen, filePath):
+def GenerateCmake(baseFileGen, langFileGen, incDirList, filePath):
     """!
     @brief Generate the subdir makefile
     """
-
+    returnStatus = True
     writeFileName = os.path.join(filePath, "CMakeLists.txt")
     try:
         # open the file
-        mockFile = open(writeFileName, 'w', encoding='utf-8')
-        mockFile.close()
+        cmakeFile = open(writeFileName, 'w', encoding='utf-8')
+        cmakeGenerator = CmakeGenerator(baseFileGen, langFileGen, incDirList)
+        cmakeGenerator.generateCmakeFile(cmakeFile)
+        cmakeFile.close()
     except:
-        print("ERROR: Unable to open "+writeFileName+" for writing!")
+        print("ERROR: Unable to open cmake file "+writeFileName+" for writing!")
         returnStatus = False
 
     return returnStatus
@@ -75,7 +78,7 @@ def GenerateLanguageSelectFiles(jsonLangFileName, jsonStringsFilename, filePath,
     langStatus = langFileGen.generateLangFiles(filePath, incfileSubdir, srcfileSubdir, tstfileSubdir)
 
     if (baseStatus and langStatus):
-        GenerateCmake(baseFileGen, langFileGen, filePath, [incfileSubdir])
+        GenerateCmake(baseFileGen, langFileGen, [incfileSubdir], filePath)
 
 def MakeSubdir(basefilePath, subDirName):
     """!

@@ -255,8 +255,7 @@ class GenerateCppFileHelper(object):
         @param includeNames {list of strings} Name(s) of the include file to add
         @return list of strings - Include code block to output
         """
-        includeBlock = ["#pragma once\n"]
-        includeBlock.append("// Includes\n")
+        includeBlock = ["// Includes\n"]
         for includeName in includeNames:
             includeBlock.append(self._genInclude(includeName))
         return includeBlock
