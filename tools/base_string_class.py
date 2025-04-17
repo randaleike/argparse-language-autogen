@@ -37,7 +37,6 @@ from file_tools.linux_lang_select import LinuxLangSelectFunctionGenerator
 from file_tools.windows_lang_select import WindowsLangSelectFunctionGenerator
 # Add additional OS lang select classes here
 
-from file_tools.static_lang_select import StaticLangSelectFunctionGenerator
 from file_tools.master_lang_select import MasterSelectFunctionGenerator
 
 
@@ -66,8 +65,6 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
                                                                     dynamicCompileSwitch=StringClassNameGen.getDynamicCompileswitch())
                                  # Add additional OS lang select classes here
                                  ]
-        self.staticSelect = StaticLangSelectFunctionGenerator(self.jsonLangData,
-                                                              dynamicCompileSwitch=StringClassNameGen.getDynamicCompileswitch())
 
         self.masterFunctionName = "getLocalParserStringListInterface"
         self.nameSpaceName = StringClassNameGen.getNamespaceName()
@@ -78,10 +75,10 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.hFileName = self._generateHFileName()
         self.mockHFileName = self._generateMockHFileName()
         self.cppFileName = self._generateCppFileName()
-        self.staticUnittestFile = self.staticSelect.getUnittestFileName()
         self.unittestBaseFile = self._generateUnittestFileName()
         self.unittestSelectFiles = []
         self.includeSubDir = []
+        self.staticUnittestFile = ""
 
     def getCmakeHFileName(self):
         return self.hFileName
@@ -101,21 +98,6 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
     def getCmakeMockFileName(self):
         return self.mockHFileName
 
-    def getCmakeStaticUnittestSets(self):
-        """!
-        @brief Get the static select unit test setup set list
-        @return list of tuples (string, string, string) - Language Name
-                                                          Language Compile switch
-                                                          Static selection unittest file
-        """
-        unittestSets = []
-        languageList = self.jsonLangData.getLanguageList()
-        for languageName in languageList:
-            languageCompileSwitch = self.jsonLangData.getLanguageCompileSwitchData(languageName)
-            unittestSets.append((languageName, languageCompileSwitch, self.staticUnittestFile))
-
-        return unittestSets
-
     def _writeCppFile(self, cppFile):
         """!
         @brief Write the OS language selection CPP file
@@ -127,16 +109,10 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         # Add the common includes
         includeFileList = ["<memory>", "<cstring>", "<string>", self._generateHFileName()]
-        cppFile.writelines(self.genIncludeBlock(includeFileList))
-
-        # Add the parser string files
         languageList = self.jsonLangData.getLanguageList()
         for langName in languageList:
-            langCompileSwitch = self.jsonLangData.getLanguageCompileSwitchData(langName)
-            ifdef = "(defined("+langCompileSwitch+") || "+self.ifDynamicDefined+")\n"
-            cppFile.writelines(["#if "+ifdef])
-            cppFile.writelines(self._genInclude(self._generateHFileName(langName)))
-            cppFile.writelines(["#endif // "+ifdef])
+            includeFileList.append(self._generateHFileName(langName))
+        cppFile.writelines(self.genIncludeBlock(includeFileList))
 
         # Add doxygen group start
         cppFile.writelines(["\n"]) # whitespace for readability
@@ -150,13 +126,9 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
             cppFile.writelines(["\n"]) # whitespace for readability
             langSelectFunction.genFunction(cppFile)
 
-        # Add the static selection function
-        cppFile.writelines(["\n"]) # whitespace for readability
-        self.staticSelect.genFunction(cppFile)
-
         # Add the master selection function
         cppFile.writelines(["\n"]) # whitespace for readability
-        self.masterFunction.genFunction(cppFile, self.osLangSelectList, self.staticSelect)
+        self.masterFunction.genFunction(cppFile, self.osLangSelectList)
 
         # Complete the doxygen group
         cppFile.writelines(["\n"]) # whitespace for readability
@@ -273,7 +245,8 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         # Add doxygen group start
         cppFile.writelines(["\n"]) # whitespace for readability
-        cppFile.writelines(self.doxyCommentGen.genDoxyDefgroup(langSelectObject.getUnittestFileName(),
+        fileName, targetName = langSelectObject.getUnittestFileName()
+        cppFile.writelines(self.doxyCommentGen.genDoxyDefgroup(fileName,
                                                                self.groupName+'unittest',
                                                                self.groupDesc+'unit test'))
 
@@ -322,7 +295,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         # Add the master selection function
         cppFile.writelines(["\n"]) # whitespace for readability
-        self.masterFunction.genUnitTest(getIsoName, cppFile, self.osLangSelectList, self.staticSelect)
+        self.masterFunction.genUnitTest(getIsoName, cppFile, self.osLangSelectList)
 
         # Add the test main
         cppFile.writelines(["\n"]) # whitespace for readability
@@ -492,8 +465,9 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        retFileName = os.path.join(subdir, langSelectObject.getUnittestFileName())
-        self.unittestSelectFiles.append(retFileName)
+        fileName, targetName = langSelectObject.getUnittestFileName()
+        retFileName = os.path.join(subdir, fileName)
+        self.unittestSelectFiles.append((retFileName, targetName))
 
         writeFileName = os.path.join(baseDirectory, retFileName)
         try:
@@ -530,7 +504,9 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         @return boolean - True for pass, else false for failure
         """
         returnStatus = True
-        retFileName = os.path.join(testSubDir, self.staticSelect.getUnittestFileName())
+        fileName, targetName = self.staticSelect.getUnittestFileName()
+
+        retFileName = os.path.join(testSubDir, fileName)
         self.staticUnittestFile = retFileName
 
         writeFileName = os.path.join(baseDirectory, retFileName)
@@ -586,7 +562,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         mockStatus = self.generateMockFile(baseDirectory, mockSubDir)
 
         selectStatus = self.generateOsSelectUnittestFiles(baseDirectory, testSubDir)
-        staticSelectStatus = self.generateStaticSelectUnittestFile(baseDirectory, testSubDir)
+        #staticSelectStatus = self.generateStaticSelectUnittestFile(baseDirectory, testSubDir)
 
-        status = cppstatus and hstatus and unitStatus and selectStatus and staticSelectStatus and mockStatus
+        status = cppstatus and hstatus and unitStatus and selectStatus and mockStatus
         return status

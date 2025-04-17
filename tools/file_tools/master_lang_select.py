@@ -76,17 +76,17 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         """
         return self.endFunction(self.selectFunctionName)
 
-    def genFunction(self, outfile, osLangSelectors, staticSelector):
+    def genFunction(self, outfile, osLangSelectors):
         """!
         @brief Generate the function body text
         @param outfile {file} File to output the function to
         @param osLangSelectors {list} List of OS language selector function generation objects
-        @param staticSelector {StaticLangSelectFunctionGenerator} Static generation object
         """
         # Generate function doxygen comment and start
         functionBody = []
         functionBody.extend(self.genFunctionDefine())
         bodyIndent = 4
+        bodyPrefix = "".rjust(bodyIndent, ' ')
 
         # Generate OS calls
         firstOs = True
@@ -100,11 +100,11 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
 
         # Add the dynamic but unknown OS #elif case
         functionBody.append("#elif defined("+self.dynamicCompileSwitch+")\n")
-        functionBody.append("#error No dynamic language generation method defined for this OS".rjust(bodyIndent, ' ')+"\n")
+        functionBody.append(bodyPrefix+"#error No dynamic language generation method defined for this OS\n")
 
         # Add the #else case
         functionBody.append("#else // not defined("+self.dynamicCompileSwitch+")\n")
-        functionBody.extend(staticSelector.genReturnFunctionCall(bodyIndent))
+        functionBody.append(bodyPrefix+"#error Dynamic language generation must be defined\n")
 
         # Complete the function
         functionBody.append("#endif // defined os and defined("+self.dynamicCompileSwitch+")\n")
@@ -120,21 +120,19 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         doCall = "return "+self.selectFunctionName+"();\n"
         return [doCall.rjust(indent, " ")]
 
-    def genUnitTest(self, getIsoMethod, outfile, osLangSelectors, staticSelector):
+    def genUnitTest(self, getIsoMethod, outfile, osLangSelectors):
         """!
         @brief Generate all unit tests for the selection function
 
         @param getIsoMethod {string} Name of the ParserStringListInterface return ISO code method
         @param outfile {file} File to output the function to
         @param osLangSelectors {list} List of OS language selector function generation objects
-        @param staticSelector {StaticLangSelectFunctionGenerator} Static generation object
         """
         testBody = []
 
         # generate the externals
         for osSelector in osLangSelectors:
             testBody.extend(osSelector.getUnittestExternInclude())
-        testBody.extend(staticSelector.getUnittestExternInclude())
         testBody.append("\n") # whitespace for readability
 
         # Generate the test
@@ -167,7 +165,7 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
 
         # Add the #else case
         testBody.append("#else // not defined("+self.dynamicCompileSwitch+")\n")
-        testBody.extend(staticSelector.genUnitTestFunctionCall(expectedParser, bodyIndentIndex))
+        testBody.append(bodyIndent+"#error Dynamic language generation must be defined\n")
 
         # Complete the function
         testBody.append("#endif // defined os and defined("+self.dynamicCompileSwitch+")\n")

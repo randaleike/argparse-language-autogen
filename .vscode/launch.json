@@ -32,6 +32,33 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}"
-        }
+        },
+        {
+            //========================================================
+            // Locallanguage select debug launch
+            //========================================================
+            "name": "LocalLanguageSelect_Linux_test unittest (gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/output/LocalLanguageSelect_Linux_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/output",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
     ]
 }

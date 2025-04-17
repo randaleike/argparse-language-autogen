@@ -37,9 +37,12 @@ class CmakeGenerator(object):
     """!
     @brief Build cmake list file
     """
-    def __init__(self, baseFileGen, langFileGen, incfileSubdir):
+    def __init__(self, baseFileGen:GenerateBaseLangFiles, langFileGen:GenerateLangFiles, incfileSubdir:list):
         """!
         @brief CmakeGenerator constructor
+        @param baseFileGen {GenerateBaseLangFiles} Object used to generate the base interface files
+        @param langFileGen {GenerateLangFiles} Object used to generate the language specific interface files
+        @param incfileSubdir {list of strings} Include directory paths relative to the file base directory
         """
         self.baseFileGen = baseFileGen
         self.langFileGen = langFileGen
@@ -50,7 +53,7 @@ class CmakeGenerator(object):
         self.incfileSubdir = incfileSubdir
         self.dynamicSelectionSwitch = "-D"+StringClassNameGen.getDynamicCompileswitch()
 
-    def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True):
+    def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True, languageCompileSwitch = None):
         """!
         @brief Generate the language file unittest executable build
 
@@ -60,6 +63,8 @@ class CmakeGenerator(object):
         @param includeDir {string} Include directory list cmake macro name
         @param incCoverage {boolean} True = include unit test coverage code,
                                      False = Don't include unit test coverage code
+        @param languageCompileSwitch {string | None} if None use dynamic compile switch,
+                                                     else use the input language compile switch.
 
         @return list of strings - Build cmake code
         """
@@ -76,7 +81,11 @@ class CmakeGenerator(object):
         buildCode.append("target_include_directories("+targetName+" PUBLIC ${"+includeDir+"} ${GTEST_INCLUDE_DIR})\n")
         buildCode.append("target_link_libraries("+targetName+" PRIVATE ${GTEST_LIBRARIES})\n")
         buildCode.append("target_compile_options("+targetName+" PUBLIC -DGTEST_LINKED_AS_SHARED_LIBRARY=1)\n")
-        buildCode.append("target_compile_options("+targetName+" PUBLIC "+self.dynamicSelectionSwitch+")\n")
+        if languageCompileSwitch is None:
+            buildCode.append("target_compile_options("+targetName+" PUBLIC "+self.dynamicSelectionSwitch+")\n")
+        else:
+            buildCode.append("target_compile_options("+targetName+" PUBLIC -D"+languageCompileSwitch+")\n")
+
         if incCoverage:
             buildCode.append("if((${CMAKE_SYSTEM_NAME} MATCHES \"Linux\") AND (CMAKE_BUILD_TYPE MATCHES \"^[Dd]ebug\"))\n")
             buildCode.append("    target_compile_options("+targetName+" PRIVATE --coverage)\n")
@@ -164,8 +173,8 @@ class CmakeGenerator(object):
 
         projectBaseSrc = projectName+"_baseSrc"
         cmakeFile.writelines(["set ("+projectBaseSrc+"\n"])
-        for fileName in libSrcFileList:
-            cmakeFile.writelines(["     ${CMAKE_CURRENT_LIST_DIR}/"+fileName+"\n"])
+        for fileNames in libSrcFileList:
+            cmakeFile.writelines(["     ${CMAKE_CURRENT_LIST_DIR}/"+fileNames+"\n"])
         cmakeFile.writelines(["     )\n"])
         cmakeFile.writelines(["\n"]) # whitespace for readability
 
@@ -193,11 +202,19 @@ class CmakeGenerator(object):
             cmakeFile.writelines(["\n"])
 
         # Output OS language select unit test build
-        #for osLangSelect in self.osLangSelect
+        osSelectUnittests = self.baseFileGen.getCmakeSelectUnittestFileNames()
+        for (selectUnittestFile, targetName) in osSelectUnittests:
+            sourceList = ["${"+projectBaseSrc+"}", selectUnittestFile]
+            cmakeCode = self._generateUnittestBuild("OS selection Unit test", sourceList, targetName, projectBaseInclude)
+            cmakeFile.writelines(cmakeCode)
+            cmakeFile.writelines(["\n"])
 
         # Output Base unittest
         projectBaseUnittest = projectName+"_baseUnittest"
         sourceList = ["${"+projectBaseSrc+"}", self.baseFileGen.getCmakeBaseUnittestFileName()]
-        cmakeCode = self._generateUnittestBuild(projectBaseUnittest, sourceList, StringClassNameGen.getBaseClassName()+"_test", projectBaseInclude)
+        cmakeCode = self._generateUnittestBuild(projectBaseUnittest,
+                                                sourceList,
+                                                StringClassNameGen.getBaseClassName()+"_test",
+                                                projectBaseInclude)
         cmakeFile.writelines(cmakeCode)
         cmakeFile.writelines(["\n"])

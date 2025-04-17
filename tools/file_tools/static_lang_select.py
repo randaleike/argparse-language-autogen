@@ -140,43 +140,35 @@ class StaticLangSelectFunctionGenerator(BaseCppClassGenerator):
         """
         # Generate block start code
         blockStart = []
-        blockStart.append("#if "+self.defStaticString+"\n")
+        blockStart.append("#if ("+self.defStaticString+"\n")
         blockStart.append(self.genExternDefinition())
         outfile.writelines(blockStart)
 
         # Generate the testgenDoxyMethodComment
-        testBlockName = "StaticSelectFunction"
-        bodyIndent = "".rjust(4, " ")
         breifDesc = "Test "+self.selectFunctionName+" selection case"
-        testBody = self.doxyCommentGen.genDoxyMethodComment(breifDesc, [])
+        testHeader = self.doxyCommentGen.genDoxyMethodComment(breifDesc, [])
+        outfile.writelines(testHeader)
 
+        # Generate the tests
+        bodyIndent = "".rjust(4, " ")
         testVar = "testVar"
         testVarDecl = self.returnType+" "+testVar
-        testVarTest = testVar+"."+getIsoMethod+"().c_str()"
-        testBody.append("TEST("+testBlockName+", CompileSwitchedValue)\n")
-        testBody.append("{\n")
-        testBody.append(bodyIndent+"// Generate the test language string object\n")
-        testBody.append(bodyIndent+testVarDecl+" = "+self.selectFunctionName+"();\n")
-        testBody.append("\n") # whitespace for readability
+        testVarTest = testVar+"->"+getIsoMethod+"().c_str()"
 
-        firstLoop = True
         for langName in self.langJsonData.getLanguageList():
-            if firstLoop:
-                testBody.append("  #if defined("+self.langJsonData.getLanguageCompileSwitchData(langName)+")\n")
-                firstLoop = False
-            else:
-                testBody.append("  #elif defined("+self.langJsonData.getLanguageCompileSwitchData(langName)+")\n")
-
+            testBody = []
+            testBody.append("#if defined("+self.langJsonData.getLanguageCompileSwitchData(langName)+")\n")
+            testBody.append("TEST(StaticSelectFunction"+langName.capitalize()+", CompileSwitchedValue)\n")
+            testBody.append("{\n")
+            testBody.append(bodyIndent+"// Generate the test language string object\n")
+            testBody.append(bodyIndent+testVarDecl+" = "+self.selectFunctionName+"();\n")
             testBody.append(bodyIndent+"EXPECT_STREQ(\""+self.langJsonData.getLanguageIsoCodeData(langName)+"\", "+testVarTest+";\n")
+            # Complete the function
+            testBody.append("}\n")
+            testBody.append("#endif //end of #if defined("+self.langJsonData.getLanguageCompileSwitchData(langName)+")\n")
+            testBody.append("\n") # whitespace for readability
 
-        # Add the final #else case
-        testBody.append("  #else //undefined language compile switch, use default\n")
-        testBody.append(bodyIndent+"#error One compile switch language must be defined!\n")
-        testBody.append("  #endif //end of language #if/#elifcompile switch chain\n")
-
-        # Complete the function
-        testBody.append("}\n")
-        outfile.writelines(testBody)
+            outfile.writelines(testBody)
 
         # Generate block end code
         outfile.writelines(["#endif // "+self.defStaticString+"\n"])
@@ -203,4 +195,4 @@ class StaticLangSelectFunctionGenerator(BaseCppClassGenerator):
         """!
         @return string Unit test cpp file name
         """
-        return "LocalLanguageSelect_Static_test.cpp"
+        return "LocalLanguageSelect_Static_test.cpp", "LocalLanguageSelect_Static_te"

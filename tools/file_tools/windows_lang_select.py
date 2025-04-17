@@ -102,7 +102,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         for langName in self.langJsonData.getLanguageList():
             langCodes, langRegionList = self.langJsonData.getLanguageLANGIDData(langName)
             for id in langCodes:
-                caseline =  caseIndent+"case"
+                caseline =  caseIndent+"case "
                 caseline += hex(id)
                 caseline += ":\n"
                 functionBody.append(caseline)
@@ -163,7 +163,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         testVar = "testVar"
         testVarDecl = self.returnType+" "+testVar
-        testVarTest = testVar+"."+getIsoMethod+"().c_str()"
+        testVarTest = testVar+"->"+getIsoMethod+"().c_str()"
         testBody.append("TEST("+testBlockName+", "+testName+")\n")
         testBody.append("{\n")
         testBody.append(bodyIndent+"// Generate the test language string object\n")
@@ -287,4 +287,4 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         """!
         @return string Unit test cpp file name
         """
-        return "LocalLanguageSelect_Windows_test.cpp"
+        return "LocalLanguageSelect_Windows_test.cpp", "LocalLanguageSelect_Windows_test"

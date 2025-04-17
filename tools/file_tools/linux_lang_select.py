@@ -100,7 +100,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         if1BodyIndent = bodyIndent+"".rjust(4, " ")
         functionBody.append(if1BodyIndent+"// Break the string into its components\n")
         functionBody.append(if1BodyIndent+"std::cmatch searchMatch;\n")
-        functionBody.append(if1BodyIndent+"std::regex searchRegex(\"(^[a-z]{2})_([A-Z]{2})\\\\.(UTF[0-9]{1,2})\");\n")
+        functionBody.append(if1BodyIndent+"std::regex searchRegex(\"^([a-z]{2})_([A-Z]{2})\\\\.(UTF-[0-9]{1,2})\");\n")
         functionBody.append(if1BodyIndent+"bool matched = std::regex_match("+paramName+", searchMatch, searchRegex);\n")
         functionBody.append("\n")  # whitespace for readability
         functionBody.append(if1BodyIndent+"// Determine the language\n")
@@ -186,16 +186,11 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         testVar = "testVar"
         testVarDecl = self.returnType+" "+testVar
-        testVarTest = testVar+"."+getIsoMethod+"().c_str()"
+        testVarTest = testVar+"->"+getIsoMethod+"().c_str()"
         testBody.append("TEST("+testBlockName+", "+testName+")\n")
         testBody.append("{\n")
-        testBody.append(bodyIndent+"std::string testLangCode;\n")
-
-        testBody.append("\n") # whitespace for readability
         testBody.append(bodyIndent+"// Generate the test language string object\n")
-        testBody.append(bodyIndent+"testLangCode = \""+linuxEnvString+"\";\n")
-
-        testBody.append("\n") # whitespace for readability
+        testBody.append(bodyIndent+"std::string testLangCode = \""+linuxEnvString+"\";\n")
         testBody.append(bodyIndent+testVarDecl+" = "+self.selectFunctionName+"(testLangCode.c_str());\n")
         testBody.append(bodyIndent+"EXPECT_STREQ(\""+expectedIso+"\", "+testVarTest+");\n")
         testBody.append("}\n")
@@ -305,4 +300,4 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         """!
         @return string Unit test cpp file name
         """
-        return "LocalLanguageSelect_Linux_test.cpp"
+        return "LocalLanguageSelect_Linux_test.cpp", "LocalLanguageSelect_Linux_test"
