@@ -89,12 +89,12 @@ class LanguageDescriptionList(object):
         return defaultLang, defaultIsoCode
 
     @staticmethod
-    def _createLanguageEntry(googleLangCode = "", linuxEnvCode = "", linuxRegionList = [],
-                             windowsLangId = [], windowsRegionList = [] , iso639Code = "", compileSwitch = ""):
+    def _createLanguageEntry(linuxEnvCode = "", linuxRegionList = [],
+                             windowsLangId = [], windowsRegionList = [],
+                             iso639Code = "", compileSwitch = ""):
         """!
         @brief Create a language dictionart entry
 
-        @param googleLangCode (string) - Google translate language code
         @param linuxEnvCode (string) - linux LANG environment value for this language
         @param linuxRegionList (list of strings) - Linux LANG region codes for this language
         @param windowsLangId (list of numbers) - Windows LANGID & 0xFF value(s) for this language
@@ -104,8 +104,7 @@ class LanguageDescriptionList(object):
 
         @return language dictionary object
         """
-        langData = [('googleCode', googleLangCode),
-                    ('LANG', linuxEnvCode),
+        langData = [('LANG', linuxEnvCode),
                     ('LANG_regions', linuxRegionList),
                     ('LANGID', windowsLangId),
                     ('LANGID_regions', windowsRegionList),
@@ -128,13 +127,13 @@ class LanguageDescriptionList(object):
         """
         return self.langJsonData['languages'][entryName][propertyName]
 
-    def getLanguageGoogleCodeData(self, entryName):
+    def getLanguageIsoCodeData(self, entryName):
         """!
-        @brief Get the googleCode data for the given entryName language
+        @brief Get the ISO 639 code data for the given entryName language
         @param entryName {string} Entry key from getLanguageList entry
-        @return string - Current ['languages'][entryName]['googleCode'] data
+        @return string - Current ['languages'][entryName]['isoCode'] data
         """
-        return self.langJsonData['languages'][entryName]['googleCode']
+        return self.langJsonData['languages'][entryName]['isoCode']
 
     def getLanguageLANGData(self, entryName):
         """!
@@ -193,9 +192,7 @@ class LanguageDescriptionList(object):
                         Description or None if the propertyName is unknown
                         True if data is a list else False
         """
-        if propertyName == 'googleCode':
-            return "string", "Google translate language code", False
-        elif propertyName == 'LANG':
+        if propertyName == 'LANG':
             return "string", "Linux environment language code", False
         elif propertyName == 'LANG_regions':
             return "string", "Linux environment region codes for this language code", True
@@ -204,7 +201,7 @@ class LanguageDescriptionList(object):
         elif propertyName == 'LANGID_regions':
             return "LANGID", "Windows full LANGID language code(s)", True
         elif propertyName == 'isoCode':
-            return "string", "ISO 639 set 3 language code", False
+            return "string", "ISO 639 set 1 language code", False
         else:
             return None, None, False
 
@@ -215,9 +212,7 @@ class LanguageDescriptionList(object):
         @param propertyName (string) Name of the property from getLanguagePropertyList()
         @return string CPP description or None if the propertyName is unknown
         """
-        if propertyName == 'googleCode':
-            return "getGoogleTranslateCode"
-        elif propertyName == 'LANG':
+        if propertyName == 'LANG':
             return "getLANGLanguage"
         elif propertyName == 'LANG_regions':
             return "getLANGRegionList"
@@ -238,13 +233,13 @@ class LanguageDescriptionList(object):
         """
         return LanguageDescriptionList.getLanguagePropertyMethodName('isoCode')
 
-    def addLanguage(self, langName, googleLangCode, linuxEnvCode, linuxRegionList,
-                    windowsLangId, windowsRegionList, iso639Code, compileSwitch):
+    def addLanguage(self, langName, linuxEnvCode, linuxRegionList,
+                    windowsLangId, windowsRegionList,
+                    iso639Code, compileSwitch):
         """!
         @brief Add a language to the self.langJsonData data
 
         @param langName (string) - Language name to use for file/class name generation
-        @param googleLangCode (string) - Google translate language code
         @param linuxEnvCode (string) - linux LANG environment value for this language
         @param linuxRegionList (list of strings) - Linux LANG region codes for this language
         @param windowsLangId (list of numbers) - Windows LANGID & 0xFF value(s) for this language
@@ -252,9 +247,9 @@ class LanguageDescriptionList(object):
         @param iso639Code (string) - ISO 639 set 3 language code
         @param compileSwitch (string) - Language compile switch
         """
-        langEntry = self._createLanguageEntry(googleLangCode, linuxEnvCode, linuxRegionList,
-                                              windowsLangId, windowsRegionList, iso639Code,
-                                              compileSwitch)
+        langEntry = self._createLanguageEntry(linuxEnvCode, linuxRegionList,
+                                              windowsLangId, windowsRegionList,
+                                              iso639Code, compileSwitch)
         self.langJsonData['languages'][langName] = langEntry
 
     def _inputLanguageName(self):
@@ -275,23 +270,23 @@ class LanguageDescriptionList(object):
                 self._printError("Only characters a-z are allowed in the <lang> name, try again.")
         return languageName
 
-    def _inputGoogleTranslateCode(self):
+    def _inputIsoTranslateCode(self):
         """!
-        @brief Get the google translate language code from user input and check for validity
+        @brief Get the ISO 639-1 translate language code from user input and check for validity
         @return string - translate code
         """
-        googleTranslateId = ""
-        while(googleTranslateId == ""):
-            transId = input("Enter google translate language code (2 lower case characters): ").lower()
+        isoTranslateId = ""
+        while(isoTranslateId == ""):
+            transId = input("Enter ISO 639-1 translate language code (2 lower case characters): ").lower()
 
             # Check validity
             if re.match('^[a-z]{2}$', transId):
                 # Valid name
-                googleTranslateId = transId
+                isoTranslateId = transId
             else:
                 # invalid name
                 self._printError("Only two characters a-z are allowed in the code, try again.")
-        return googleTranslateId
+        return isoTranslateId
 
     def _inputLinuxLangCode(self):
         """!
@@ -370,13 +365,13 @@ class LanguageDescriptionList(object):
         while not entryCorrect:
             name = self._inputLanguageName()
             compileSwitch = name.upper()+"_ERRORS"
-            googleCode = self._inputGoogleTranslateCode()
+            isoCode = self._inputIsoTranslateCode()
             linuxLangCode = self._inputLinuxLangCode()
             linuxLangRegions = self._inputLinuxLangRegions()
             winCaseIds, winLangIds = self._inputWindowsLangIds()
 
-            newEntry = self._createLanguageEntry(googleCode, linuxLangCode, linuxLangRegions,
-                                                 winCaseIds, winLangIds, googleCode, compileSwitch)
+            newEntry = self._createLanguageEntry(linuxLangCode, linuxLangRegions,
+                                                 winCaseIds, winLangIds, isoCode, compileSwitch)
 
             # Print entry for user to inspect
             print("New Entry:")

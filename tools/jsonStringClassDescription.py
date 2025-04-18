@@ -57,6 +57,8 @@ class StringClassDescription(object):
             self.stringJasonData = json.load(langJsonFile)
             langJsonFile.close()
 
+        self.transClient = None  # open it only if and when we need it
+
     def _definePropertyFunctionEntry(self, propertyName = "", briefDesc = "", retType = "", retDesc = "", isList = False):
         """!
         @brief Define a property string return function dictionary and
@@ -109,17 +111,17 @@ class StringClassDescription(object):
     def _defineTranslationDict(self, translateBaseLang = "en", translateText = None):
         """!
         @brief Create a translation dictionary
-        @param translateBaseLang {string} Google translation language code for the input translateText string
+        @param translateBaseLang {string} ISO 639-1 language code for the input translateText string
         @param translateText {list} Parsed text of the message
         @return dictionary - {'base':<translateBaseLang>, 'text':<translateText>} Translate method translation string dictionary
         """
         return {translateBaseLang: translateText}
 
-    def addTranslation(self, methodName, baseLang = "en", textData = None):
+    def addManualTranslation(self, methodName:str, baseLang:str = "en", textData = None):
         """!
         @brief Add language text to the function definition
-        @param transFumethodNamenction {string} Translation method name to add the language text to
-        @param baseLang {sting} Google translation language code for the input translateText string
+        @param methodName {string} Translation method name to add the language text to
+        @param baseLang {sting} ISO 639-1 language code for the input textData string
         @param textData {list} Parsed text of the message
         @return boolean - True if it was added, else false
         """
@@ -132,6 +134,57 @@ class StringClassDescription(object):
         else:
             return False
 
+    def _translateText(self, sourceLang:str, targetLang:str, text:str):
+        """!
+        @brief Translate the input text
+        @param sourceLang {string} ISO 639-1 language code of the input text
+        @param targetLang {string} ISO 639-1 language code for the output text
+        @param text {string} text to translate
+        @return string - Translated text
+        """
+        from google.cloud import translate_v2 as translate
+        if self.transClient is None:
+            self.transClient = translate.Client()
+
+        if isinstance(text, bytes):
+            text = text.decode("utf-8")
+
+        translatedTextData = self.transClient.translate(text, target_language=targetLang, source_language=sourceLang)
+        rawTranslatedText = translatedTextData['translatedText']
+
+        #if targetLang == "fr":
+        #    rawTranslatedText = rawTranslatedText.replace("&#39;", "'")
+
+        return rawTranslatedText.replace("&quot;", "\"")
+
+    def _translateMethodText(self, methodName:str, jsonLangData:LanguageDescriptionList = None):
+        """!
+        @brief Add language text to the function definition
+        @param methodName {string} Translation method name to add the language text to
+        @apram jsonLangData {LanguageDescriptionList} Language list data
+        """
+        if jsonLangData is not None:
+            # Get the list of supported languages and the list of existing translations
+            languageList = jsonLangData.getLanguageList()
+            existingLangages = list(self.stringJasonData['translateMethods'][methodName]['translateDesc'])
+
+            # Determine if any language translations are missing
+            for language in languageList:
+                langIsoCode = jsonLangData.getLanguageIsoCodeData(language)
+                if langIsoCode not in existingLangages:
+                    # Use the first language
+                    sourceLanguage = existingLangages[0]
+                    baseTextData = self.stringJasonData['translateMethods'][methodName]['translateDesc'][sourceLanguage]
+                    sourceText = StringClassNameGen.assembleParsedStrData(baseTextData)
+
+                    # Translate and parse for storage
+                    translatedText = self._translateText(sourceLanguage, langIsoCode, sourceText)
+                    translatedTextData = StringClassNameGen.parseTranlateString(translatedText)
+                    self.stringJasonData['translateMethods'][methodName]['translateDesc'][langIsoCode] = translatedTextData
+        else:
+            pass
+
+
     def _defineTranslateFunctionEntry(self, briefDesc = "", paramsList = [], retDesc = "",
                                       translateBaseLang = "en", translateText = None):
         """!
@@ -142,7 +195,7 @@ class StringClassDescription(object):
                                   doxygen comment block generation
         @param paramsList {list of dictionaries} List of the function parameter dictionary entrys
         @param retDesc {string} Description of the return parserstr value
-        @param translateBaseLang {string} Google translation language code for the input translateText string
+        @param translateBaseLang {string} ISO 639-1 language code for the input translateText string
         @param translateText {list} Parsed text of the message
 
         @return {'name':<string>, 'briefDesc':<string>, 'params':[],
@@ -182,23 +235,23 @@ class StringClassDescription(object):
         """
         return self.stringJasonData['translateMethods'][methodName]['translateDesc'][targetLanguage]
 
-    def _inputGoogleTranslateCode(self):
+    def _inputIsoTranslateCode(self):
         """!
-        @brief Get the google translate language code from user input and check for validity
+        @brief Get the ISO 639-1 translate language code from user input and check for validity
         @return string - translate code
         """
-        googleTranslateId = ""
-        while(googleTranslateId == ""):
-            transId = input("Enter original string google translate language code (2 lower case characters): ").lower()
+        isoTranslateId = ""
+        while(isoTranslateId == ""):
+            transId = input("Enter original string ISO 639-1 translate language code (2 lower case characters): ").lower()
 
             # Check validity
             if re.match('^[a-z]{2}$', transId):
                 # Valid name
-                googleTranslateId = transId
+                isoTranslateId = transId
             else:
                 # invalid name
                 print("Error: Only two characters a-z are allowed in the code, try again.")
-        return googleTranslateId
+        return isoTranslateId
 
     def _inputCName(self):
         paramName = ""
@@ -361,7 +414,7 @@ class StringClassDescription(object):
 
         return parsedString
 
-    def newTranslateMethodEntry(self):
+    def newTranslateMethodEntry(self, languageList:LanguageDescriptionList = None):
         """!
         @brief Define and add a new translate string return function dictionary
                to the list of translate functions
@@ -381,7 +434,7 @@ class StringClassDescription(object):
 
             returnDesc = self._inputReturnData()
 
-            languageBase = self._inputGoogleTranslateCode()
+            languageBase = self._inputIsoTranslateCode()
             translateString = self._inputTranslateString(paramList)
             newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDesc, languageBase, translateString)
 
@@ -400,17 +453,19 @@ class StringClassDescription(object):
             if ((commit == 'Y') or (commit == "YES")):
                 commitFlag = True
                 self.stringJasonData['translateMethods'][methodName] = newEntry
+                self._translateMethodText(methodName, languageList)
         else:
             commit = input("Add new entry? [Y/N]").upper()
             if ((commit == 'Y') or (commit == "YES")):
                 commitFlag = True
                 self.stringJasonData['translateMethods'][methodName] = newEntry
+                self._translateMethodText(methodName, languageList)
 
         return commitFlag
 
-    def addTranslateMethodEntry(self, methodName, methodDesc, paramList,
-                                returnDescription, googleLangCode, translateString,
-                                override = False):
+    def addTranslateMethodEntry(self, methodName:str, methodDesc:str, paramList:list,
+                                returnDescription:str, isoLangCode:str, translateString:str,
+                                override:bool = False, languageList:LanguageDescriptionList = None):
         """!
         @brief Add a new translate string return function dictionary
                to the list of translate functions
@@ -418,27 +473,31 @@ class StringClassDescription(object):
         @param methodDesc {string} Brief description of the function for doxygen comment generation
         @param paramList {list of dictionaries} List of the input parameter description dictionaries
         @param returnDescription {string} Brief description of the return value for doxygen comment generation
-        @param googleLangCode {string} Google translate language ID code of the input translateString
+        @param isoLangCode {string} ISO 639-1 language code of the input translateString
         @param translateString {string} String to generate translations for
         @param override {boolean} True = Override existing without asking
+        @param languageList {LanguageDescriptionList | None} Supported language description data or None
         """
         status, matchCount, paramCount, parsedStrData = self._validateTranslateString(paramList, translateString)
         if not status:
             print ("Error: Invalid translation string: "+translateString+". paramCount= "+str(paramCount)+" matchCount= "+str(matchCount))
             return False
 
-        newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDescription, googleLangCode, parsedStrData)
+        newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDescription, isoLangCode, parsedStrData)
 
         if methodName in self.stringJasonData['translateMethods'].keys():
             # Determine if we should overwrite existing
             if override:
-                    self.stringJasonData['translateMethods'][methodName] = newEntry
+                self.stringJasonData['translateMethods'][methodName] = newEntry
+                self._translateMethodText(methodName, languageList)
             else:
                 commit = input("Overwrite existing "+methodName+" entry? [Y/N]").upper()
                 if ((commit == 'Y') or (commit == "YES")):
                     self.stringJasonData['translateMethods'][methodName] = newEntry
+                    self._translateMethodText(methodName, languageList)
         else:
             self.stringJasonData['translateMethods'][methodName] = newEntry
+            self._translateMethodText(methodName, languageList)
 
     def _getPropertyReturnData(self):
         """!
@@ -544,10 +603,11 @@ class StringClassDescription(object):
                 self.stringJasonData['propertyMethods'][methodName] = newEntry
 
 
-def CreateDefaultStringFile(classStrings, forceUpdate):
+def CreateDefaultStringFile(classStrings:StringClassDescription, languageList:LanguageDescriptionList, forceUpdate:bool = False):
     """!
     @brief Add a function to the self.langJsonData data
-    @param classStrings (StringClassDescription) - Object to create/update
+    @param classStrings {StringClassDescription} - Object to create/update
+    @param languageList {LanguageDescriptionList} - List of languages to translate
     @param forceUpdate {boolean} True force the update without user intervention,
                                  False request update confermation on all methods
     """
@@ -559,39 +619,24 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Non-list varg error message",
                                          "en",
                                          "Only list type arguments can have an argument count of @nargs@",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getNotListTypeMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Seuls les arguments de type liste peuvent avoir un nombre d'arguments de @nargs@"))
-    classStrings.addTranslation("getNotListTypeMessage", "es",
-                                StringClassNameGen.parseTranlateString("Solo los argumentos de tipo lista pueden tener un recuento de argumentos de @nargs@"))
-    classStrings.addTranslation("getNotListTypeMessage", "zh",
-                                StringClassNameGen.parseTranlateString("只有列表类型的参数可以有一个参数计数 @nargs@"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getUnknownArgumentMessage", "Return unknown parser key error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Unknown key")],
                                          "Unknown parser key error message",
                                          "en",
                                          "Unknown argument: @keyString@",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getUnknownArgumentMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Argument inconnu: @keyString@"))
-    classStrings.addTranslation("getUnknownArgumentMessage", "es",
-                                StringClassNameGen.parseTranlateString("Argumento desconocido: @keyString@"))
-    classStrings.addTranslation("getUnknownArgumentMessage", "zh",
-                                StringClassNameGen.parseTranlateString("未知参数： @keyString@"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getInvalidAssignmentMessage", "Return varg invalid assignment error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
                                          "Varg key invalid assignment error message",
                                          "en",
                                          "\"@keyString@\" invalid assignment",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getInvalidAssignmentMessage", "fr",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" affectation invalide"))
-    classStrings.addTranslation("getInvalidAssignmentMessage", "es",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" asignación inválida"))
-    classStrings.addTranslation("getInvalidAssignmentMessage", "zh",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" 无效分配"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getAssignmentFailedMessage", "Return varg assignment failed error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key"),
@@ -599,26 +644,16 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Varg key assignment failed error message",
                                          "en",
                                          "\"@keyString@\", \"@valueString@\" assignment failed",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getAssignmentFailedMessage", "fr",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\", \"@valueString@\" l'affectation a échoué"))
-    classStrings.addTranslation("getAssignmentFailedMessage", "es",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\", \"@valueString@\" asignación fallida"))
-    classStrings.addTranslation("getAssignmentFailedMessage", "zh",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\", \"@valueString@\" 分配失败"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getMissingAssignmentMessage", "Return varg missing assignment error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
                                          "Varg key missing value assignment error message",
                                          "en",
                                          "\"@keyString@\" missing assignment value",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getMissingAssignmentMessage", "fr",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" valeur d'affectation manquante"))
-    classStrings.addTranslation("getMissingAssignmentMessage", "es",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" valor de asignación faltante"))
-    classStrings.addTranslation("getMissingAssignmentMessage", "zh",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" 缺少赋值"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getMissingListAssignmentMessage", "Return varg missing list value assignment error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key"),
@@ -627,13 +662,8 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Varg key input value list too short error message",
                                          "en",
                                          "\"@keyString@\" missing assignment value(s). Expected: @nargsExpected@ found: @nargsFound@ arguments",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getMissingListAssignmentMessage", "fr",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" devoir manquant. Attendu: @nargsExpected@ trouvé : @nargsFound@ arguments"))
-    classStrings.addTranslation("getMissingListAssignmentMessage", "es",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" tarea faltante. Esperado: @nargsExpected@ encontrado: @nargsFound@ argumentos"))
-    classStrings.addTranslation("getMissingListAssignmentMessage", "zh",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\"  缺少任务。 预期的： @nargsExpected@ 成立： @nargsFound@ 论据"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getTooManyAssignmentMessage", "Return varg missing list value assignment error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key"),
@@ -642,39 +672,24 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Varg key input value list too long error message",
                                          "en",
                                          "\"@keyString@\" too many assignment values. Expected: @nargsExpected@ found: @nargsFound@ arguments",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getTooManyAssignmentMessage", "fr",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" trop de valeurs d'affectation. Attendu: @nargsExpected@ trouvé : @nargsFound@ arguments"))
-    classStrings.addTranslation("getTooManyAssignmentMessage", "es",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" demasiados valores de asignación. Esperado: @nargsExpected@ encontrado: @nargsFound@ argumentos"))
-    classStrings.addTranslation("getTooManyAssignmentMessage", "zh",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" 分配值过多。 预期的： @nargsExpected@ 成立： @nargsFound@ 论据"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getMissingArgumentMessage", "Return required varg missing error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
                                          "Required varg key missing error message",
                                          "en",
                                          "\"@keyString@\" required argument missing",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getMissingArgumentMessage", "fr",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" argument obligatoire manquant"))
-    classStrings.addTranslation("getMissingArgumentMessage", "es",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" falta el argumento requerido"))
-    classStrings.addTranslation("getMissingArgumentMessage", "zh",
-                                StringClassNameGen.parseTranlateString("\"@keyString@\" 缺少必要的参数"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getArgumentCreationError", "Return parser add varg failure error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
                                          "Parser varg add failure message",
                                          "en",
                                          "Argument add failed: @keyString@",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getArgumentCreationError", "fr",
-                                StringClassNameGen.parseTranlateString("Échec de l'ajout d'arguments: @keyString@"))
-    classStrings.addTranslation("getArgumentCreationError", "es",
-                                StringClassNameGen.parseTranlateString("No se pudo agregar el argumento: @keyString@"))
-    classStrings.addTranslation("getArgumentCreationError", "zh",
-                                StringClassNameGen.parseTranlateString("参数添加失败： @keyString@"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     # Command Line parser messages
     classStrings.addTranslateMethodEntry("getUsageMessage", "Return usage help message",
@@ -682,26 +697,16 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Usage help message",
                                          "en",
                                          "Usage:",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getUsageMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Usage:"))
-    classStrings.addTranslation("getUsageMessage", "es",
-                                StringClassNameGen.parseTranlateString("Uso:"))
-    classStrings.addTranslation("getUsageMessage", "zh",
-                                StringClassNameGen.parseTranlateString("用法："))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getPositionalArgumentsMessage", "Return positional argument help message",
                                          [],
                                          "Positional argument help message",
                                          "en",
                                          "Positional Arguments:",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getPositionalArgumentsMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Arguments positionnels:"))
-    classStrings.addTranslation("getPositionalArgumentsMessage", "es",
-                                StringClassNameGen.parseTranlateString("Argumentos posicionales:"))
-    classStrings.addTranslation("getPositionalArgumentsMessage", "zh",
-                                StringClassNameGen.parseTranlateString("位置参数："))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
 
     classStrings.addTranslateMethodEntry("getSwitchArgumentsMessage", "Return optional argument help message",
@@ -709,26 +714,16 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Optional argument help message",
                                          "en",
                                          "Optional Arguments:",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getSwitchArgumentsMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Arguments facultatifs:"))
-    classStrings.addTranslation("getSwitchArgumentsMessage", "es",
-                                StringClassNameGen.parseTranlateString("Argumentos opcionales:"))
-    classStrings.addTranslation("getSwitchArgumentsMessage", "zh",
-                                StringClassNameGen.parseTranlateString("可选参数："))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getHelpString", "Return default help switch help message",
                                          [],
                                          "Default help argument help message",
                                          "en",
                                          "show this help message and exit",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getHelpString", "fr",
-                                StringClassNameGen.parseTranlateString("afficher ce message d'aide et quitter"))
-    classStrings.addTranslation("getHelpString", "es",
-                                StringClassNameGen.parseTranlateString("mostrar este mensaje de ayuda y salir"))
-    classStrings.addTranslation("getHelpString", "zh",
-                                StringClassNameGen.parseTranlateString("显示此帮助信息并退出"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     # Environment parser messages
     classStrings.addTranslateMethodEntry("getEnvArgumentsMessage", "Return environment parser argument help header",
@@ -736,39 +731,24 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "Environment parser argument help header message",
                                          "en",
                                          "Defined Environment values:",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getEnvArgumentsMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Valeurs environnementales:"))
-    classStrings.addTranslation("getEnvArgumentsMessage", "es",
-                                StringClassNameGen.parseTranlateString("Valores ambientales:"))
-    classStrings.addTranslation("getEnvArgumentsMessage", "zh",
-                                StringClassNameGen.parseTranlateString("环境值："))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getEnvironmentNoFlags", "Return environment parser add flag varg failure error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Flag key")],
                                          "Environment parser add flag varg failure message",
                                          "en",
                                          "Environment value @keyString@ narg must be > 0",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getEnvironmentNoFlags", "fr",
-                                StringClassNameGen.parseTranlateString("Valeurs environnementale @keyString@ narg doit être > 0"))
-    classStrings.addTranslation("getEnvironmentNoFlags", "es",
-                                StringClassNameGen.parseTranlateString("Valores ambiental @keyString@ narg debe ser > 0"))
-    classStrings.addTranslation("getEnvironmentNoFlags", "zh",
-                                StringClassNameGen.parseTranlateString("环境价值 @keyString@ narg 必须 > 0"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getRequiredEnvironmentArgMissing", "Return environment parser required varg missing error message",
                                          [ParamRetDict.buildParamDict("keyString", "string", "Flag key")],
                                          "Environment parser required varg missing error message",
                                          "en",
                                          "Environment value @keyString@ must be defined",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getRequiredEnvironmentArgMissing", "fr",
-                                StringClassNameGen.parseTranlateString("La valeur d'environnement @keyString@ doit être définie"))
-    classStrings.addTranslation("getRequiredEnvironmentArgMissing", "es",
-                                StringClassNameGen.parseTranlateString("Se debe definir el valor del entorno @keyString@"))
-    classStrings.addTranslation("getRequiredEnvironmentArgMissing", "zh",
-                                StringClassNameGen.parseTranlateString("必须定义环境值 @keyString@"))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
 
     # JSON file parser messages
@@ -777,13 +757,8 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "JSON parser argument help header message",
                                          "en",
                                          "Available JSON argument values:",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getJsonArgumentsMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Valeurs d'argument JSON disponibles:"))
-    classStrings.addTranslation("getJsonArgumentsMessage", "es",
-                                StringClassNameGen.parseTranlateString("Valores de argumentos JSON disponibles:"))
-    classStrings.addTranslation("getJsonArgumentsMessage", "zh",
-                                StringClassNameGen.parseTranlateString("可用的 JSON 参数值："))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     # XML file parser messages
     classStrings.addTranslateMethodEntry("getXmlArgumentsMessage", "Return xml parser argument help header",
@@ -791,27 +766,22 @@ def CreateDefaultStringFile(classStrings, forceUpdate):
                                          "XML parser argument help header message",
                                          "en",
                                          "Available XML argument values:",
-                                         override = forceUpdate)
-    classStrings.addTranslation("getXmlArgumentsMessage", "fr",
-                                StringClassNameGen.parseTranlateString("Valeurs d'argument XML disponibles:"))
-    classStrings.addTranslation("getXmlArgumentsMessage", "es",
-                                StringClassNameGen.parseTranlateString("Valores de argumentos XML disponibles:"))
-    classStrings.addTranslation("getXmlArgumentsMessage", "zh",
-                                StringClassNameGen.parseTranlateString("可用的 XML 参数值："))
+                                         override = forceUpdate,
+                                         languageList = languageList)
 
     classStrings.update()
 
-def AddTranslateMethodEntry(classStrings):
+def AddTranslateMethodEntry(classStrings:StringClassDescription, languageList:LanguageDescriptionList):
     """!
     @brief Add a translate string function to the self.langJsonData data
     @param classStrings (StringClassDescription) - Object to add translate method to
     """
-    commit = classStrings.newTranslateMethodEntry()
+    commit = classStrings.newTranslateMethodEntry(languageList)
     if commit:
         print ("Updating JSON file")
         classStrings.update()
 
-def AddPropertyMethodEntry(classStrings):
+def AddPropertyMethodEntry(classStrings:StringClassDescription):
     """!
     @brief Add a property string function to the self.langJsonData data
     """
@@ -820,7 +790,7 @@ def AddPropertyMethodEntry(classStrings):
         print ("Updating JSON file")
         classStrings.update()
 
-def PrintMethods(classStrings):
+def PrintMethods(classStrings:StringClassDescription):
     """!
     @brief Print the current data file
     @param classStrings (StringClassDescription) - Object to output
@@ -844,15 +814,16 @@ def CommandMain():
     args = parser.parse_args()
 
     classStrings = StringClassDescription(FileNameGenerator.getStringClassDescriptionFileName(args.jsonpath))
+    languageData = LanguageDescriptionList(FileNameGenerator.getLanguageDescriptionFileName(args.jsonpath))
 
     if args.subcommand.lower() == "addproperty":
         AddPropertyMethodEntry(classStrings)
     if args.subcommand.lower() == "addtranslate":
-        AddTranslateMethodEntry(classStrings)
+        AddTranslateMethodEntry(classStrings, languageData)
     elif args.subcommand.lower() == "print":
         PrintMethods(classStrings)
     elif args.subcommand.lower() == "createnew":
-        CreateDefaultStringFile(classStrings, args.force)
+        CreateDefaultStringFile(classStrings, languageData, args.force)
     else:
         print ("Error: Unknown JSON string method definition file command: "+args.subcommand)
         SystemExit(1)

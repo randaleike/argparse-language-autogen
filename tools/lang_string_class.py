@@ -205,9 +205,9 @@ class GenerateLangFiles(BaseStringClassGenerator):
     def _translateString(self, baseLanguage, baseText, targetLang):
         """!
         @brief Translate the baseText string into the target language from the base language
-        @param baseLanguage {string} Google translate language code of the baseText string
+        @param baseLanguage {string} ISO 639-1 language code of the baseText string
         @param baseText {string} String to translate and output
-        @param targetLang {string} Google translate language code for the translated baseText string
+        @param targetLang {string} ISO 639-1 language code for the translated baseText string
         @return string - Translated string
         """
         if baseLanguage == targetLang:
@@ -283,7 +283,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
             cppFile.writelines(methodDef)
 
             # Get the language generation string if needed
-            targetLang = self.jsonLangData.getLanguageGoogleCodeData(langName)
+            targetLang = self.jsonLangData.getLanguageIsoCodeData(langName)
 
             # Get the language data replacements
             streamDesc = self.jsonStringsData.getTranlateMethodTextData(translateMethodName, targetLang)
@@ -525,7 +525,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         codeText.append(bodyIndent+fetchCode)
 
         # Build the expected string
-        targetLang = self.jsonLangData.getLanguageGoogleCodeData(langName)
+        targetLang = self.jsonLangData.getLanguageIsoCodeData(langName)
         expectedString = ""
         stringData = self.jsonStringsData.getTranlateMethodTextData(translateMethodName, targetLang)
         for strDescTuple in stringData:

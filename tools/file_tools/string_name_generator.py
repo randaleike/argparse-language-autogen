@@ -93,7 +93,7 @@ class StringClassNameGen(object):
         return "DYNAMIC_INTERNATIONALIZATION"
 
     @staticmethod
-    def parseTranlateString(baseString):
+    def parseTranlateString(baseString:str):
         """!
         @brief Convert the input string to an output string stream
         @param baseString {string} String to convert
@@ -110,23 +110,44 @@ class StringClassNameGen(object):
             # Add text data prior to first match if any
             if matchData.start() > previousEnd:
                 rawText = r'{}'.format(baseString[previousEnd:matchData.start()])
-                stringList.append((StringClassNameGen.parsedTypeText, rawText.replace('\"', '\\\"')))
+                stringList.append([StringClassNameGen.parsedTypeText, rawText.replace('\"', '\\\"')])
 
             # Add the matched parameter
-            stringList.append((StringClassNameGen.parsedTypeParam, matchData.group()[1:-1]))
+            stringList.append([StringClassNameGen.parsedTypeParam, matchData.group()[1:-1]])
             previousEnd = matchData.end()
 
         # Add the trailing string
         if previousEnd < len(baseString):
             rawText = r'{}'.format(baseString[previousEnd:])
-            stringList.append((StringClassNameGen.parsedTypeText, rawText.replace('\"', '\\\"')))
+            stringList.append([StringClassNameGen.parsedTypeText, rawText.replace('\"', '\\\"')])
 
         return stringList
 
     @staticmethod
-    def isParsedTextType(parsedTuple):
+    def assembleParsedStrData(stringTupleList:list):
         """!
         @brief Check if the input parsed translation string tuple is a text type
+        @return string - paredTuple data field
+        """
+        returnText = ""
+        for descTuple in stringTupleList:
+            if StringClassNameGen.isParsedTextType(descTuple):
+                returnText += StringClassNameGen.getParsedStrData(descTuple)
+            elif StringClassNameGen.isParsedParamType(descTuple):
+                returnText += '@'
+                returnText += StringClassNameGen.getParsedStrData(descTuple)
+                returnText += '@'
+            else:
+                raise TypeError("Unknown string description tuple type: "+str(descTuple[0]))
+                return None
+
+        return returnText
+
+
+    @staticmethod
+    def isParsedTextType(parsedTuple:list):
+        """!
+        @brief Check if the input pgetParsedStrDataarsed translation string tuple is a text type
         @return boolean - True if tuple[0] == StringClassNameGen.parsedTypeText
                           else False
         """
@@ -136,7 +157,7 @@ class StringClassNameGen(object):
             return False
 
     @staticmethod
-    def isParsedParamType(parsedTuple):
+    def isParsedParamType(parsedTuple:list):
         """!
         @brief Check if the input parsed translation string tuple is a text type
         @return boolean - True if tuple[0] == StringClassNameGen.parsedTypeParam
@@ -148,7 +169,7 @@ class StringClassNameGen(object):
             return False
 
     @staticmethod
-    def getParsedStrData(parsedTuple):
+    def getParsedStrData(parsedTuple:list):
         """!
         @brief Check if the input parsed translation string tuple is a text type
         @return string - paredTuple data field
