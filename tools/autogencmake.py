@@ -46,8 +46,8 @@ class CmakeGenerator(object):
         """
         self.baseFileGen = baseFileGen
         self.langFileGen = langFileGen
-        self.versionMajor = 0
-        self.versionMinor = 5
+        self.versionMajor = 1
+        self.versionMinor = 0
         self.versionPatch = 0
         self.versionTweak = 0
         self.incfileSubdir = incfileSubdir

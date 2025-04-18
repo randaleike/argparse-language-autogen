@@ -149,13 +149,13 @@ class StringClassDescription(object):
         if isinstance(text, bytes):
             text = text.decode("utf-8")
 
-        translatedTextData = self.transClient.translate(text, target_language=targetLang, source_language=sourceLang)
+        translatedTextData = self.transClient.translate(text,
+                                                        target_language=targetLang,
+                                                        format_='text',
+                                                        source_language=sourceLang,
+                                                        model='nmt')
         rawTranslatedText = translatedTextData['translatedText']
-
-        #if targetLang == "fr":
-        #    rawTranslatedText = rawTranslatedText.replace("&#39;", "'")
-
-        return rawTranslatedText.replace("&quot;", "\"")
+        return rawTranslatedText
 
     def _translateMethodText(self, methodName:str, jsonLangData:LanguageDescriptionList = None):
         """!
@@ -179,7 +179,7 @@ class StringClassDescription(object):
 
                     # Translate and parse for storage
                     translatedText = self._translateText(sourceLanguage, langIsoCode, sourceText)
-                    translatedTextData = StringClassNameGen.parseTranlateString(translatedText)
+                    translatedTextData = StringClassNameGen.parseTranslateString(translatedText)
                     self.stringJasonData['translateMethods'][methodName]['translateDesc'][langIsoCode] = translatedTextData
         else:
             pass
@@ -347,7 +347,7 @@ class StringClassDescription(object):
             expectedParamList.append(paramName)
 
         # Break the string into it's component parts
-        parsedStrData = StringClassNameGen.parseTranlateString(testString)
+        parsedStrData = StringClassNameGen.parseTranslateString(testString)
 
         # Check the broken string counts
         matchCount = 0
@@ -735,18 +735,18 @@ def CreateDefaultStringFile(classStrings:StringClassDescription, languageList:La
                                          languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getEnvironmentNoFlags", "Return environment parser add flag varg failure error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Flag key")],
+                                         [ParamRetDict.buildParamDict("envKeyString", "string", "Flag key")],
                                          "Environment parser add flag varg failure message",
                                          "en",
-                                         "Environment value @keyString@ narg must be > 0",
+                                         "Environment value @envKeyString@ narg must be > 0",
                                          override = forceUpdate,
                                          languageList = languageList)
 
     classStrings.addTranslateMethodEntry("getRequiredEnvironmentArgMissing", "Return environment parser required varg missing error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Flag key")],
+                                         [ParamRetDict.buildParamDict("envKeyString", "string", "Flag key")],
                                          "Environment parser required varg missing error message",
                                          "en",
-                                         "Environment value @keyString@ must be defined",
+                                         "Environment value @envKeyString@ must be defined",
                                          override = forceUpdate,
                                          languageList = languageList)
 

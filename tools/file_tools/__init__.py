@@ -24,7 +24,7 @@ File tools
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-__version__ = '0.9.0'
+__version__ = '1.0.0.0'
 __all__ = ["string_class_tools", "linux_lang_select", "windows_lang_select",
            "static_lang_select", "master_lang_select"]
 

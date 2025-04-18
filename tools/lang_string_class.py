@@ -46,8 +46,8 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @param eulaName {string} EULA text to use in the header message or None to default MIT Open
         """
         super().__init__(owner, eulaName)
-        self.versionMajor = 0
-        self.versionMinor = 9
+        self.versionMajor = 1
+        self.versionMinor = 0
         self.versionPatch = 0
         self.versionTweak = 0
 
@@ -57,6 +57,18 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         self.langFileNames = {}
         self.includeSubDir = []
+
+        self.testParamValues = {'keyString': "--myKey",
+                                'envKeyString': "MY_ENV_KEY",
+                                'jsonKeyString': "jsonkey:",
+                                'xmlKeyString': "<xmlkey>",
+                                'nargs': "3",
+                                'nargsExpected': "2",
+                                'nargsFound': "1",
+                                'vargRange': "<-100:100>",
+                                'vargType': "integer",
+                                'valueString': "23"
+                                }
 
     def _addFile(self, languageName, fileType, fileName):
         if languageName in self.langFileNames:
@@ -103,6 +115,25 @@ class GenerateLangFiles(BaseStringClassGenerator):
             unittestSets.append((languageName, cppFile, unittestFile, cmakeTargetName))
 
         return unittestSets
+
+    def _getParamTestValue(self, paramName:str, isText:bool):
+        """!
+        @brief Return the parameter test value
+        @param paramName (string) Name fot the value
+        @param isText (boolean) True if parameter expects text input value,
+                                else False
+        @return string - Test value
+        """
+        if paramName in self.testParamValues:
+            if isText:
+                return "\""+self.testParamValues[paramName]+"\""
+            else:
+                return self.testParamValues[paramName]
+        else:
+            if isText:
+                return "\"42\""
+            else:
+                return "42"
 
     def _genPropertyCode(self, langName, propertyName, propertyReturn, isText):
         """!
@@ -202,26 +233,11 @@ class GenerateLangFiles(BaseStringClassGenerator):
                     cppFile.writelines([bodyIndent+line+"\n"])
                 cppFile.writelines(["}\n"])
 
-    def _translateString(self, baseLanguage, baseText, targetLang):
-        """!
-        @brief Translate the baseText string into the target language from the base language
-        @param baseLanguage {string} ISO 639-1 language code of the baseText string
-        @param baseText {string} String to translate and output
-        @param targetLang {string} ISO 639-1 language code for the translated baseText string
-        @return string - Translated string
-        """
-        if baseLanguage == targetLang:
-            return baseText
-        else:
-            #client = translate.Client(target_langage=targetLang,credentials=)
-            return baseText
-
-    def _writeIncTranslateMethods(self, hFile, langName):
+    def _writeIncTranslateMethods(self, hFile):
         """!
         @brief Write the property method definitions
 
         @param hFile {File} File to write the data to
-        @param langName {string} Language name or None this is for the base file
         """
         # Add the property fetch methods
         postfixFinal = "final"
@@ -240,14 +256,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @return string - Inline code
         """
         streamString = StringClassNameGen.getParserStrStreamType()+" parserstr;  parserstr"
-        for outputDesc in streamDescList:
-            if StringClassNameGen.isParsedTextType(outputDesc):
-                streamString += ' << "'
-                streamString += StringClassNameGen.getParsedStrData(outputDesc)
-                streamString += '"'
-            if StringClassNameGen.isParsedParamType(outputDesc):
-                streamString += ' << '
-                streamString += StringClassNameGen.getParsedStrData(outputDesc)
+        streamString += StringClassNameGen.assembleStream(streamDescList)
         streamString += "; return parserstr.str();"
         return streamString
 
@@ -329,7 +338,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         hFile.writelines(["\n"]) # whitespace for readability
 
         # Add the string generation methods
-        self._writeIncTranslateMethods(hFile, langName)
+        self._writeIncTranslateMethods(hFile)
 
         # Close the class
         hFile.writelines(self.genClassClose(className))
@@ -371,20 +380,6 @@ class GenerateLangFiles(BaseStringClassGenerator):
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
 
-    def _genUnitPropertyParamInput(self, xlatedParamType):
-        if xlatedParamType == self.xlateMatrix['string']:
-            return "\"test\""
-        elif xlatedParamType == self.xlateMatrix['size']:
-            return "2"
-        elif xlatedParamType == self.xlateMatrix['integer']:
-            return "-1"
-        elif xlatedParamType == self.xlateMatrix['unsigned']:
-            return "1"
-        elif xlatedParamType == self.xlateMatrix['LANGID']:
-            return "10"
-        else:
-            return "5"
-
     def _generatePropertyUnittest(self, propertyMethod, langName):
         """!
         @brief Generate the unit test for the input property method
@@ -411,9 +406,10 @@ class GenerateLangFiles(BaseStringClassGenerator):
         paramPrefix = ""
         for param in propertyParams:
             paramType = ParamRetDict.getParamType(param)
-            xlatedParamType, isText = self.xlateGenericType(paramType, False)
             fetchCode += paramPrefix
-            fetchCode += self._genUnitPropertyParamInput(xlatedParamType)
+            paramValue = self._getParamTestValue(ParamRetDict.getParamName(param),
+                                                 self.xlateMatrix[paramType]['isText'])
+            fetchCode += paramValue
             paramPrefix = ", "
         fetchCode += ");\n"
         codeText.append(bodyIndent+fetchCode)
@@ -456,41 +452,6 @@ class GenerateLangFiles(BaseStringClassGenerator):
         codeText.append("}\n")
         return codeText
 
-    def _genUnitTransParamInput(self, paramName, isInput):
-        if paramName == "keyString":
-            if isInput:
-                return "\"-test\""
-            else:
-                return "-test"
-        if paramName == "envString":
-            if isInput:
-                return "\"envtest\""
-            else:
-                return "envtest"
-        elif paramName == "nargs":
-            return "3"
-        elif paramName == "nargsExpected":
-            return "2"
-        elif paramName == "nargsFound":
-            return "1"
-        elif paramName == "vargRange":
-            if isInput:
-                return "\"<-100:100>\""
-            else:
-                return "<-100:100>"
-        elif paramName == "vargType":
-            if isInput:
-                return "\"integer\""
-            else:
-                return "integer"
-        elif paramName == "valueString":
-            if isInput:
-                return "\"5\""
-            else:
-                return "5"
-        else:
-            return "6"
-
     def _generateTranslateUnittest(self, translateMethodName, langName):
         """!
         @brief Generate the unit test for the input property method
@@ -517,30 +478,19 @@ class GenerateLangFiles(BaseStringClassGenerator):
         paramPrefix = ""
         for param in transParams:
             paramType = ParamRetDict.getParamType(param)
-            xlatedParamType, isText = self.xlateGenericType(paramType, False)
             fetchCode += paramPrefix
-            fetchCode += self._genUnitTransParamInput(ParamRetDict.getParamName(param), True)
+            fetchCode += self._getParamTestValue(ParamRetDict.getParamName(param), self.xlateMatrix[paramType]['isText'])
             paramPrefix = ", "
         fetchCode += ");\n"
         codeText.append(bodyIndent+fetchCode)
 
         # Build the expected string
         targetLang = self.jsonLangData.getLanguageIsoCodeData(langName)
-        expectedString = ""
         stringData = self.jsonStringsData.getTranlateMethodTextData(translateMethodName, targetLang)
-        for strDescTuple in stringData:
-            if StringClassNameGen.isParsedTextType(strDescTuple):
-                expectedString += StringClassNameGen.getParsedStrData(strDescTuple)
-            elif StringClassNameGen.isParsedParamType(strDescTuple):
-                expectedString += self._genUnitTransParamInput(StringClassNameGen.getParsedStrData(strDescTuple), False)
-            else:
-                print("Error: Unknown StringClassNameGen parsed string list type "+str(strDescTuple[0]))
+        expectedString = StringClassNameGen.assembleTestReturnString(stringData, self.testParamValues)
 
         # Build the assertion test
-        assertText = "EXPECT_STREQ("
-        assertText += "\""
-        assertText += expectedString
-        assertText += "\", output.c_str());\n"
+        assertText = "EXPECT_STREQ(\""+expectedString+"\", output.c_str());\n"
         codeText.append(bodyIndent+assertText)
         codeText.append("}\n")
         return codeText

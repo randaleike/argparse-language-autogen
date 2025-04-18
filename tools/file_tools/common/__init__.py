@@ -24,7 +24,7 @@ File tools
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-__version__ = '0.9.0'
+__version__ = '1.0.0.0'
 __all__ = ["copyright_tools", "comment_block", "eula",
            "text_format", "compile_switch_gen", "file_gen_tools",
            "doxygen_gen_tools", "param_return_tools"]

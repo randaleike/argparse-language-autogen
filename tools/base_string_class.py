@@ -51,8 +51,8 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         @param eulaName {string} EULA text to use in the header message or None to default MIT Open
         """
         super().__init__(owner, eulaName)
-        self.versionMajor = 0
-        self.versionMinor = 9
+        self.versionMajor = 1
+        self.versionMinor = 0
         self.versionPatch = 0
         self.versionTweak = 0
 

@@ -30,8 +30,9 @@ import re
 class StringClassNameGen(object):
     projectNameSpace = "argparser"
 
-    parsedTypeText  = 0
-    parsedTypeParam = 1
+    parsedTypeText    = 'text'
+    parsedTypeParam   = 'param'
+    parsedTypeSpecial = 'special'
 
     """!
     @brief Helper static class for generating consistent ParserStringInterface names across multiple files
@@ -93,7 +94,47 @@ class StringClassNameGen(object):
         return "DYNAMIC_INTERNATIONALIZATION"
 
     @staticmethod
-    def parseTranlateString(baseString:str):
+    def makeTextEntry(textBlock:str):
+        return (StringClassNameGen.parsedTypeText, textBlock)
+
+    @staticmethod
+    def makeSpecialCharEntry(textBlock:str):
+        return (StringClassNameGen.parsedTypeSpecial, textBlock[0])
+
+    @staticmethod
+    def makeParamEntry(paramName:str):
+        return (StringClassNameGen.parsedTypeParam, paramName)
+
+    @staticmethod
+    def parseTextBlock(textBlock:str):
+        """!
+        @brief Convert the input string to an output string stream
+        @param baseString {string} String to convert
+        @return list of dictionaries - List of dictionary entries descibing the parsed string
+        """
+        matchList = re.finditer(r'\\|\"', textBlock)
+
+        stringList = []
+        previousEnd = 0
+        for matchData in matchList:
+            # Add text data prior to first match if any
+            if matchData.start() > previousEnd:
+                rawText = r'{}'.format(textBlock[previousEnd:matchData.start()])
+                stringList.append(StringClassNameGen.makeTextEntry(rawText))
+
+            # Add the matched parameter
+            stringList.append(StringClassNameGen.makeSpecialCharEntry(matchData.group()))
+            previousEnd = matchData.end()
+
+        # Add the trailing string
+        if previousEnd < len(textBlock):
+            rawText = r'{}'.format(textBlock[previousEnd:])
+            stringList.append(StringClassNameGen.makeTextEntry(rawText))
+
+        return stringList
+
+    @staticmethod
+    def parseTranslateString(baseString:str):
         """!
         @brief Convert the input string to an output string stream
         @param baseString {string} String to convert
@@ -110,39 +151,96 @@ class StringClassNameGen(object):
             # Add text data prior to first match if any
             if matchData.start() > previousEnd:
                 rawText = r'{}'.format(baseString[previousEnd:matchData.start()])
-                stringList.append([StringClassNameGen.parsedTypeText, rawText.replace('\"', '\\\"')])
+                stringList.extend(StringClassNameGen.parseTextBlock(rawText))
 
             # Add the matched parameter
-            stringList.append([StringClassNameGen.parsedTypeParam, matchData.group()[1:-1]])
+            stringList.append(StringClassNameGen.makeParamEntry(matchData.group()[1:-1]))
             previousEnd = matchData.end()
 
         # Add the trailing string
         if previousEnd < len(baseString):
             rawText = r'{}'.format(baseString[previousEnd:])
-            stringList.append([StringClassNameGen.parsedTypeText, rawText.replace('\"', '\\\"')])
+            stringList.extend(StringClassNameGen.parseTextBlock(rawText))
 
         return stringList
 
     @staticmethod
     def assembleParsedStrData(stringTupleList:list):
         """!
-        @brief Check if the input parsed translation string tuple is a text type
-        @return string - paredTuple data field
+        @brief Assemble the input string description tuple list into a translation string
+        @param stringTupleList (list) List of string description tuples
+        @return string - Assempled text string ready for input into a language translation engine
         """
         returnText = ""
-        for descTuple in stringTupleList:
-            if StringClassNameGen.isParsedTextType(descTuple):
-                returnText += StringClassNameGen.getParsedStrData(descTuple)
-            elif StringClassNameGen.isParsedParamType(descTuple):
+        for descType, descData in stringTupleList:
+            if StringClassNameGen.parsedTypeText == descType:
+                returnText += descData
+            elif StringClassNameGen.parsedTypeParam == descType:
                 returnText += '@'
-                returnText += StringClassNameGen.getParsedStrData(descTuple)
+                returnText += descData
                 returnText += '@'
+            elif StringClassNameGen.parsedTypeSpecial == descType:
+                returnText += descData
             else:
-                raise TypeError("Unknown string description tuple type: "+str(descTuple[0]))
-                return None
+                raise TypeError("Unknown string description tuple type: "+descType)
 
         return returnText
 
+    @staticmethod
+    def assembleStream(stringTupleList:list):
+        """!
+        @brief Assemble the input string description tuple list into a translation string
+        @param stringTupleList (list) List of string description tuples
+        @return string - Assempled text string ready for input into a language translation engine
+        """
+        returnText = ""
+        stringOpen = False
+
+        for descType, descData in stringTupleList:
+            if StringClassNameGen.parsedTypeText == descType:
+                if not stringOpen:
+                    returnText += " << \""
+                    stringOpen = True
+                returnText += descData
+            elif StringClassNameGen.parsedTypeParam == descType:
+                if stringOpen:
+                    returnText += "\" << "
+                    stringOpen = False
+                returnText += descData
+            elif StringClassNameGen.parsedTypeSpecial == descType:
+                if not stringOpen:
+                    returnText += " << \""
+                    stringOpen = True
+                returnText += "\\"+descData
+            else:
+                raise TypeError("Unknown string description tuple type: "+descType)
+
+        # Close the open string if present
+        if stringOpen:
+            returnText += "\""
+            stringOpen = False
+        return returnText
+
+    @staticmethod
+    def assembleTestReturnString(stringTupleList:list, valueXlateDict:dict):
+        """!
+        @brief Assemble the input string description tuple list into a translation string
+        @param stringTupleList (list) List of string description tuples
+        @param valueXlateDict (dict) Dictionary of param names and expected values
+        @return string - Assempled text string ready for input into a language translation
+                         expected string
+        """
+        returnText = ""
+        for descType, descData in stringTupleList:
+            if StringClassNameGen.parsedTypeText == descType:
+                returnText += descData
+            elif StringClassNameGen.parsedTypeParam == descType:
+                returnText += valueXlateDict[descData]
+            elif StringClassNameGen.parsedTypeSpecial == descType:
+                returnText += "\\"+descData
+            else:
+                raise TypeError("Unknown string description tuple type: "+descType)
+        return returnText
 
     @staticmethod
     def isParsedTextType(parsedTuple:list):
