@@ -49,7 +49,7 @@ class StaticLangSelectFunctionGenerator(BaseCppClassGenerator):
         return self.selectFunctionName
 
     def getOsDefine(self):
-        return None
+        return self.defStaticString
 
     def getOsDynamicDefine(self):
         return self.defStaticString

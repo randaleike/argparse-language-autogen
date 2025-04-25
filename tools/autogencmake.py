@@ -37,23 +37,28 @@ class CmakeGenerator(object):
     """!
     @brief Build cmake list file
     """
-    def __init__(self, baseFileGen:GenerateBaseLangFiles, langFileGen:GenerateLangFiles, incfileSubdir:list):
+    def __init__(self, baseFileGen:GenerateBaseLangFiles, langFileGen:GenerateLangFiles,
+                 incfileSubdir:list, mockIncdir:str, baseDir:str):
         """!
         @brief CmakeGenerator constructor
         @param baseFileGen {GenerateBaseLangFiles} Object used to generate the base interface files
         @param langFileGen {GenerateLangFiles} Object used to generate the language specific interface files
         @param incfileSubdir {list of strings} Include directory paths relative to the file base directory
+        @param mockIncdir {string} Mock file output directory
+        @param baseDir {string} Base directory name
         """
         self.baseFileGen = baseFileGen
         self.langFileGen = langFileGen
         self.versionMajor = 1
         self.versionMinor = 0
         self.versionPatch = 0
-        self.versionTweak = 0
+        self.versionTweak = 3
         self.incfileSubdir = incfileSubdir
+        self.mockIncfileSubdir = [mockIncdir]
+        self.baseDirName = baseDir
         self.dynamicSelectionSwitch = "-D"+StringClassNameGen.getDynamicCompileswitch()
 
-    def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True, languageCompileSwitch = None):
+    def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True):
         """!
         @brief Generate the language file unittest executable build
 
@@ -81,10 +86,6 @@ class CmakeGenerator(object):
         buildCode.append("target_include_directories("+targetName+" PUBLIC ${"+includeDir+"} ${GTEST_INCLUDE_DIR})\n")
         buildCode.append("target_link_libraries("+targetName+" PRIVATE ${GTEST_LIBRARIES})\n")
         buildCode.append("target_compile_options("+targetName+" PUBLIC -DGTEST_LINKED_AS_SHARED_LIBRARY=1)\n")
-        if languageCompileSwitch is None:
-            buildCode.append("target_compile_options("+targetName+" PUBLIC "+self.dynamicSelectionSwitch+")\n")
-        else:
-            buildCode.append("target_compile_options("+targetName+" PUBLIC -D"+languageCompileSwitch+")\n")
 
         if incCoverage:
             buildCode.append("if((${CMAKE_SYSTEM_NAME} MATCHES \"Linux\") AND (CMAKE_BUILD_TYPE MATCHES \"^[Dd]ebug\"))\n")
@@ -120,6 +121,56 @@ class CmakeGenerator(object):
         sourceList = [cppFile, unittestFile]
         description = languageName+" string"
         return self._generateUnittestBuild(description, sourceList, targetName, includeDir, incCoverage)
+
+    def generatecmakeIncFile(self, cmakeFile):
+        """!
+        @brief CMake include file if you need to link in the source files directly
+        @param cmakeFile {file} Open file for output
+        @param baseDir {string} Base output directory name
+        """
+        # Build the library include path list
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["# Language files include path\n"])
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["set (languageStringsIncDir\n"])
+        for dir in self.incfileSubdir:
+            cmakeFile.writelines(["     ${MASTER_PROJECT_BASE_DIR}/"+self.baseDirName+"/"+dir+"\n"])
+        cmakeFile.writelines(["     )\n"])
+        cmakeFile.writelines(["\n"]) # whitespace for readability
+
+        # Build the mock include path list
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["# Language files mock include path\n"])
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["set (languageStringsMockIncDir\n"])
+        cmakeFile.writelines(["     ${languageStringsIncDir}\n"])
+        for dir in self.mockIncfileSubdir:
+            cmakeFile.writelines(["     ${MASTER_PROJECT_BASE_DIR}/"+self.baseDirName+"/"+dir+"\n"])
+        cmakeFile.writelines(["     )\n"])
+        cmakeFile.writelines(["\n"]) # whitespace for readability
+
+        # Get the source file list
+        libSrcFileList = [self.baseFileGen.getCmakeLibFileName()]
+        libSrcFileList.extend(self.langFileGen.getCmakeLangLibFileNames())
+
+        # Build Source List
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["# Language source file list\n"])
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["set (languageStringsSrc\n"])
+        for fileNames in libSrcFileList:
+            cmakeFile.writelines(["     ${MASTER_PROJECT_BASE_DIR}/"+self.baseDirName+"/"+fileNames+"\n"])
+        cmakeFile.writelines(["     )\n"])
+        cmakeFile.writelines(["\n"]) # whitespace for readability
+
+        # Build Mock file List
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["# Language mock file list\n"])
+        cmakeFile.writelines(["####\n"])
+        cmakeFile.writelines(["set (languageStringsMockSrc\n"])
+        cmakeFile.writelines(["     ${MASTER_PROJECT_BASE_DIR}/"+self.baseDirName+"/"+self.baseFileGen.getCmakeMockSrcFileName()+"\n"])
+        cmakeFile.writelines(["     )\n"])
+        cmakeFile.writelines(["\n"]) # whitespace for readability
 
     def generateCmakeFile(self, cmakeFile):
         """!
@@ -181,8 +232,7 @@ class CmakeGenerator(object):
         cmakeFile.writelines(["####\n"])
         cmakeFile.writelines(["# "+projectName+" library\n"])
         cmakeFile.writelines(["####\n"])
-        cmakeFile.writelines(["add_library(${PROJECT_NAME} STATIC ${"+projectBaseSrc+"})\n"])
-        cmakeFile.writelines(["target_compile_options(${PROJECT_NAME} PUBLIC "+self.dynamicSelectionSwitch+")\n"])
+        cmakeFile.writelines(["add_library(${PROJECT_NAME} OBJECT ${"+projectBaseSrc+"})\n"])
         cmakeFile.writelines(["target_include_directories(${PROJECT_NAME} PRIVATE ${"+projectBaseInclude+"})\n"])
         cmakeFile.writelines(["set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION})\n"])
         cmakeFile.writelines(["\n"]) # whitespace for readability

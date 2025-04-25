@@ -238,6 +238,12 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         else:
             return "mock_"+StringClassNameGen.getBaseClassName()+".h"
 
+    def _generateMockCppFileName(self, langName = None):
+        if langName is not None:
+            return "mock_"+StringClassNameGen.getLangClassName(langName)+".cpp"
+        else:
+            return "mock_"+StringClassNameGen.getBaseClassName()+".cpp"
+
     def _writeMethod(self, methodName, methodDesc,
                      methodParams, returnDict, prefix, postfix,
                      skipDoxygenComment = True, inlineCode = None):

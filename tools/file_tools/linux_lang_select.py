@@ -34,7 +34,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
     """!
     Methods for Linux language select function generation
     """
-    def __init__(self, jsonLangData, functionName = "getParserStringListInterface_Linux", dynamicCompileSwitch="DYNAMIC_INTERNATIONALIZATION"):
+    def __init__(self, jsonLangData, functionName = "getParserStringListInterface_Linux"):
         """!
         @brief LinuxLangSelectFunctionGenerator constructor
         @param jsonLangData {string} JSON language description list file name
@@ -45,7 +45,6 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         self.paramDictList = [ParamRetDict.buildParamDict("langId", "const char*", "Current LANG value from the program environment")]
         self.selectFunctionName = functionName
         self.defOsString = "(defined(__linux__) || defined(__unix__))"
-        self.defDynamicOsString = "("+self.defOsString+" && defined("+dynamicCompileSwitch+"))"
         self.langJsonData = jsonLangData
         self.doxyCommentGen = CDoxyCommentGenerator()
 
@@ -54,9 +53,6 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
     def getOsDefine(self):
         return self.defOsString
-
-    def getOsDynamicDefine(self):
-        return self.defDynamicOsString
 
     def genFunctionDefine(self):
         """!
@@ -81,7 +77,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         """
         # Generate the #if and includes
         functionBody = []
-        functionBody.append("#if "+self.defDynamicOsString+"\n")
+        functionBody.append("#if "+self.defOsString+"\n")
         functionBody.append(self._genInclude("<cstdlib>"))
         functionBody.append(self._genInclude("<regex>"))
         functionBody.append("\n")  # whitespace for readability
@@ -141,7 +137,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         # Complete the function
         functionBody.append(self.genFunctionEnd())
-        functionBody.append("#endif // "+self.defDynamicOsString+"\n")
+        functionBody.append("#endif // "+self.defOsString+"\n")
         outfile.writelines(functionBody)
 
     def genReturnFunctionCall(self, indent = 4):
@@ -221,8 +217,11 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         """
         # Generate block start code
         blockStart = []
-        blockStart.append("#if "+self.defDynamicOsString+"\n")
+        blockStart.append("#if "+self.defOsString+"\n")
+        blockStart.append("\n") # white space for readability
+        blockStart.append(self._genInclude("<cstdlib>"))
         blockStart.append(self.genExternDefinition())
+        blockStart.append("\n") # white space for readability
         outfile.writelines(blockStart)
 
         # Generate the tests
@@ -258,7 +257,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         outfile.writelines(unknownLangBody)
 
         # Generate block end code
-        outfile.writelines(["#endif // "+self.defDynamicOsString+"\n"])
+        outfile.writelines(["#endif // "+self.defOsString+"\n"])
 
     def genUnitTestFunctionCall(self, checkVarName, indent = 4):
         """!
@@ -290,10 +289,10 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
     def getUnittestExternInclude(self):
         incBlock = []
-        incBlock.append("#if "+self.defDynamicOsString+"\n")
+        incBlock.append("#if "+self.defOsString+"\n")
         incBlock.append(self._genInclude("<cstdlib>"))
         incBlock.append(self.genExternDefinition())
-        incBlock.append("#endif // "+self.defDynamicOsString+"\n")
+        incBlock.append("#endif // "+self.defOsString+"\n")
         return incBlock
 
     def getUnittestFileName(self):

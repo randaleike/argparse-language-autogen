@@ -33,7 +33,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
     """!
     Methods for Windows language select function generation
     """
-    def __init__(self, jsonLangData, functionName = "getParserStringListInterface_Windows", dynamicCompileSwitch="DYNAMIC_INTERNATIONALIZATION"):
+    def __init__(self, jsonLangData, functionName = "getParserStringListInterface_Windows"):
         """!
         @brief WindowsLangSelectFunctionGenerator constructor
         @param jsonLangData {string} JSON language description list file name
@@ -44,7 +44,6 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         self.paramDictList = [ParamRetDict.buildParamDict("langId", "LANGID", "Return value from GetUserDefaultUILanguage() call")]
         self.selectFunctionName = functionName
         self.defOsString = "(defined(_WIN64) || defined(_WIN32))"
-        self.defDynamicOsString = "("+self.defOsString+" && defined("+dynamicCompileSwitch+"))"
         self.langJsonData = jsonLangData
         self.doxyCommentGen = CDoxyCommentGenerator()
 
@@ -53,9 +52,6 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
 
     def getOsDefine(self):
         return self.defOsString
-
-    def getOsDynamicDefine(self):
-        return self.defDynamicOsString
 
     def genFunctionDefine(self):
         """!
@@ -84,7 +80,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         # Generate the #if and includes
         paramName = ParamRetDict.getParamName(self.paramDictList[0])
         functionBody = []
-        functionBody.append("#if "+self.defDynamicOsString+"\n")
+        functionBody.append("#if "+self.defOsString+"\n")
         functionBody.append(self._genInclude("<windows.h>"))
         functionBody.append("\n")  # whitespace for readability
 
@@ -118,7 +114,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         # Complete the function
         functionBody.append(self.genFunctionEnd())
-        functionBody.append("#endif // "+self.defDynamicOsString+"\n")
+        functionBody.append("#endif // "+self.defOsString+"\n")
         outfile.writelines(functionBody)
 
     def genReturnFunctionCall(self, indent = 4):
@@ -199,8 +195,11 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         """
         # Generate block start code
         blockStart = []
-        blockStart.append("#if "+self.defDynamicOsString+"\n")
+        blockStart.append("#if "+self.defOsString+"\n")
+        blockStart.append("\n") # white space for readability
+        blockStart.append(self._genInclude("<windows.h>"))
         blockStart.append(self.genExternDefinition())
+        blockStart.append("\n") # white space for readability
         outfile.writelines(blockStart)
 
         # Generate the tests
@@ -245,7 +244,7 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
         outfile.writelines(unknownLangBody)
 
         # Generate block end code
-        outfile.writelines(["#endif // "+self.defDynamicOsString+"\n"])
+        outfile.writelines(["#endif // "+self.defOsString+"\n"])
 
     def genUnitTestFunctionCall(self, checkVarName, indent = 4):
         """!
@@ -277,10 +276,10 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
 
     def getUnittestExternInclude(self):
         incBlock = []
-        incBlock.append("#if "+self.defDynamicOsString+"\n")
+        incBlock.append("#if "+self.defOsString+"\n")
         incBlock.append(self._genInclude("windows.h"))
         incBlock.append(self.genExternDefinition())
-        incBlock.append("#endif // "+self.defDynamicOsString+"\n")
+        incBlock.append("#endif // "+self.defOsString+"\n")
         return incBlock
 
     def getUnittestFileName(self):

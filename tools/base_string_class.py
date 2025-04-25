@@ -54,31 +54,31 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.versionMajor = 1
         self.versionMinor = 0
         self.versionPatch = 0
-        self.versionTweak = 0
+        self.versionTweak = 1
 
         self.jsonLangData = LanguageDescriptionList(jsonLangFileName)
         self.jsonStringsData = StringClassDescription(jsonStringsFilename)
 
-        self.osLangSelectList = [LinuxLangSelectFunctionGenerator(self.jsonLangData,
-                                                                  dynamicCompileSwitch=StringClassNameGen.getDynamicCompileswitch()),
-                                 WindowsLangSelectFunctionGenerator(self.jsonLangData,
-                                                                    dynamicCompileSwitch=StringClassNameGen.getDynamicCompileswitch())
+        self.osLangSelectList = [LinuxLangSelectFunctionGenerator(self.jsonLangData),
+                                 WindowsLangSelectFunctionGenerator(self.jsonLangData)
                                  # Add additional OS lang select classes here
                                  ]
 
         self.masterFunctionName = "getLocalParserStringListInterface"
         self.nameSpaceName = StringClassNameGen.getNamespaceName()
         self.masterFunction = MasterSelectFunctionGenerator(self.masterFunctionName,
-                                                            StringClassNameGen.getBaseClassName(),
-                                                            StringClassNameGen.getDynamicCompileswitch())
+                                                            StringClassNameGen.getBaseClassName())
 
         self.hFileName = self._generateHFileName()
         self.mockHFileName = self._generateMockHFileName()
+        self.mockSrcFileName = self._generateMockCppFileName()
         self.cppFileName = self._generateCppFileName()
         self.unittestBaseFile = self._generateUnittestFileName()
         self.unittestSelectFiles = []
         self.includeSubDir = []
         self.staticUnittestFile = ""
+
+        self.mockClassName = "mock_"+StringClassNameGen.getBaseClassName()
 
     def getCmakeHFileName(self):
         return self.hFileName
@@ -95,8 +95,11 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
     def getCmakeSelectUnittestFileNames(self):
         return self.unittestSelectFiles
 
-    def getCmakeMockFileName(self):
+    def getCmakeMockIncFileName(self):
         return self.mockHFileName
+
+    def getCmakeMockSrcFileName(self):
+        return self.mockSrcFileName
 
     def _writeCppFile(self, cppFile):
         """!
@@ -117,6 +120,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         # Add doxygen group start
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self.doxyCommentGen.genDoxyDefgroup(self._generateCppFileName(), self.groupName, self.groupDesc))
+        cppFile.writelines(["// NOLINTBEGIN\n"])
 
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self._genUsingNamespace(self.nameSpaceName))
@@ -131,6 +135,8 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.masterFunction.genFunction(cppFile, self.osLangSelectList)
 
         # Complete the doxygen group
+        cppFile.writelines(["\n"]) # whitespace for readability
+        cppFile.writelines(["// NOLINTEND\n"])
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
 
@@ -310,7 +316,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
 
-    def _writeMockFile(self, mockFile):
+    def _writeMockHFile(self, mockFile):
         """!
         @brief Write the OS language selection CPP file
         @param hFile {File} File to write the data to
@@ -329,7 +335,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         mockFile.writelines(self.genIncludeBlock(includeList))
         mockFile.writelines(["\n"]) # whitespace for readability
 
-        mockFile.writelines(self.doxyCommentGen.genDoxyDefgroup(StringClassNameGen.getBaseClassName()+".h", self.groupName, self.groupDesc))
+        mockFile.writelines(self.doxyCommentGen.genDoxyDefgroup(self._generateMockHFileName(), self.groupName, self.groupDesc))
         mockFile.writelines(["\n"]) # whitespace for readability
         mockFile.writelines(["#pragma once\n"])
 
@@ -337,15 +343,15 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         mockFile.writelines(["\n"]) # whitespace for readability
 
         # Start class definition
-        className = StringClassNameGen.getBaseClassName()
-        mockFile.writelines(self.genClassOpen("mock_"+className,
+        baseClassName = StringClassNameGen.getBaseClassName()
+        mockFile.writelines(self.genClassOpen(self.mockClassName,
                                               "Mock Parser error/help string generation interface",
-                                              "public "+className,
+                                              "public "+baseClassName,
                                               "final"))
         mockFile.writelines(["    public:\n"])
 
         # Add default Constructor/destructor definitions
-        mockFile.writelines(self.genClassDefaultConstructorDestructor(className,
+        mockFile.writelines(self.genClassDefaultConstructorDestructor(self.mockClassName,
                                                                       self.declareIndent,
                                                                       True,
                                                                       True,
@@ -364,8 +370,38 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
             transDesc, transParams, transReturn = self.jsonStringsData.getTranlateMethodFunctionData(translateMethodName)
             mockFile.writelines(self._writeMockMethod(translateMethodName, transParams, transReturn, postfix))
 
+
         # Close the class and namespace
-        mockFile.writelines(self.genClassClose(className))
+        mockFile.writelines(self.genClassClose(self.mockClassName))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        # Close namespace
+        mockFile.writelines(self.genNamespaceClose(self.nameSpaceName))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        # Complete the doxygen group
+        mockFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
+
+    def _writeMockCppFile(self, mockFile):
+        """!
+        @brief Write the OS language selection CPP file
+        @param hFile {File} File to write the data to
+        """
+        # Write the common header datajsonStringsDef
+        mockFile.writelines(self._generateFileHeader())
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        includeList = [self._generateMockHFileName()]
+        mockFile.writelines(self.genIncludeBlock(includeList))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        mockFile.writelines(self.doxyCommentGen.genDoxyDefgroup(self._generateMockCppFileName(), self.groupName, self.groupDesc))
+        mockFile.writelines(["\n"]) # whitespace for readability
+
+        mockFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
+        mockFile.writelines(["using ::testing::StrictMock;\n"])
+        mockFile.writelines(["using ::testing::Return;\n"])
+        mockFile.writelines(["using stringMockptr = StrictMock<mock_ParserStringListInterface>*;\n"])
         mockFile.writelines(["\n"]) # whitespace for readability
 
         # Add the OS local language fetch override
@@ -377,11 +413,29 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
                                                          selectRetDict,
                                                          True)
 
-        functionDef.append("{return std::make_shared<mock_"+className+">();}\n")
-        functionDef.append("\n")  # whitespace for readability
+        bodyIndent = "".rjust(4, ' ')
+        makeMockPtr = "std::make_shared< StrictMock<"
+        makeMockPtr += self.mockClassName
+        makeMockPtr += "> >();"
 
+        makeStr = "std::shared_ptr<"
+        makeStr += StringClassNameGen.getBaseClassName()
+        makeStr += "> retPtr = "
+        makeStr += makeMockPtr
+
+        functionDef.append("{\n")
+        functionDef.append(bodyIndent+makeStr+"\n\n")
+
+        functionDef.append("#if defined(CONSTRUCTOR_GET_HELP_STRING)\n")
+        functionDef.append(bodyIndent+"//Parent object constructor will call getHelpString, so setup the expected call\n")
+        functionDef.append(bodyIndent+"//before returning the pointer\n")
+        functionDef.append(bodyIndent+"stringMockptr stringMock = reinterpret_cast<stringMockptr> (retPtr.get());   // NOLINT\n")
+        functionDef.append(bodyIndent+"EXPECT_CALL(*stringMock, getHelpString()).WillOnce(Return(\"mock getHelpString\"));\n")
+        functionDef.append("#endif //defined(CONSTRUCTOR_GET_HELP_STRING)\n\n")
+
+        functionDef.append(bodyIndent+"return retPtr;\n")
+        functionDef.append("}\n")
         mockFile.writelines(functionDef)
-        mockFile.writelines(self.genNamespaceClose(self.nameSpaceName))
 
         # Complete the doxygen group
         mockFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
@@ -521,7 +575,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateMockFile(self, baseDirectory = "../output", subdir="mock"):
+    def generateMockHFile(self, baseDirectory = "../output", subdir="mock"):
         """!
         @brief Generate the base strings class unit test file
         @param baseDirectory {string} Base File output directory
@@ -536,13 +590,37 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         try:
             # open the file
             mockFile = open(writeFileName, 'w', encoding='utf-8')
-            self._writeMockFile(mockFile)
+            self._writeMockHFile(mockFile)
             mockFile.close()
         except:
             print("ERROR: Unable to open "+writeFileName+" for writing!")
             returnStatus = False
 
         return returnStatus
+
+    def generateMockCppFile(self, baseDirectory = "../output", subdir="mock"):
+        """!
+        @brief Generate the base strings class unit test file
+        @param baseDirectory {string} Base File output directory
+        @param subdir {string} Subdirectory to put the mock files into
+        @return boolean - True for pass, else false for failure
+        """
+        returnStatus = True
+        retFileName = os.path.join(subdir, self._generateMockCppFileName())
+        self.mockCppFileName = retFileName
+
+        writeFileName = os.path.join(baseDirectory, retFileName)
+        try:
+            # open the file
+            mockFile = open(writeFileName, 'w', encoding='utf-8')
+            self._writeMockCppFile(mockFile)
+            mockFile.close()
+        except:
+            print("ERROR: Unable to open "+writeFileName+" for writing!")
+            returnStatus = False
+
+        return returnStatus
+
 
     def genBaseFiles(self, baseDirectory = "../output", incSubdir = "inc", srcSubdir="src", testSubDir="test", mockSubDir = "mock"):
         """!
@@ -559,10 +637,11 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         hstatus = self.generateBaseHFile(baseDirectory, incSubdir)
         cppstatus = self.generateCppFile(baseDirectory, srcSubdir)
         unitStatus = self.generateUnittestFile(baseDirectory, testSubDir)
-        mockStatus = self.generateMockFile(baseDirectory, mockSubDir)
+        mockHStatus = self.generateMockHFile(baseDirectory, mockSubDir)
+        mockCppStatus = self.generateMockCppFile(baseDirectory, mockSubDir)
 
         selectStatus = self.generateOsSelectUnittestFiles(baseDirectory, testSubDir)
         #staticSelectStatus = self.generateStaticSelectUnittestFile(baseDirectory, testSubDir)
 
-        status = cppstatus and hstatus and unitStatus and selectStatus and mockStatus
+        status = cppstatus and hstatus and unitStatus and selectStatus and mockHStatus and mockCppStatus
         return status

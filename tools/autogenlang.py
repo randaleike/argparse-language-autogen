@@ -35,20 +35,31 @@ from base_string_class import GenerateBaseLangFiles
 from lang_string_class import GenerateLangFiles
 from autogencmake import CmakeGenerator
 
-def GenerateCmake(baseFileGen, langFileGen, incDirList, filePath):
+def GenerateCmake(baseFileGen, langFileGen, incDirList, mockDir, filePath):
     """!
     @brief Generate the subdir makefile
     """
+    baseFileDir = os.path.basename(os.path.normpath(filePath))
+    cmakeGenerator = CmakeGenerator(baseFileGen, langFileGen, incDirList, mockDir, baseFileDir)
     returnStatus = True
-    writeFileName = os.path.join(filePath, "CMakeLists.txt")
+    cmakeBaseFileName = os.path.join(filePath, "CMakeLists.txt")
     try:
         # open the file
-        cmakeFile = open(writeFileName, 'w', encoding='utf-8')
-        cmakeGenerator = CmakeGenerator(baseFileGen, langFileGen, incDirList)
+        cmakeFile = open(cmakeBaseFileName, 'w', encoding='utf-8')
         cmakeGenerator.generateCmakeFile(cmakeFile)
         cmakeFile.close()
     except:
-        print("ERROR: Unable to open cmake file "+writeFileName+" for writing!")
+        print("ERROR: Unable to open cmake file "+cmakeBaseFileName+" for writing!")
+        returnStatus = False
+
+    cmakeIncludeFile = os.path.join(filePath, "language_files.cmake")
+    try:
+        # open the file
+        cmakeIncFile = open(cmakeIncludeFile, 'w', encoding='utf-8')
+        cmakeGenerator.generatecmakeIncFile(cmakeIncFile)
+        cmakeIncFile.close()
+    except:
+        print("ERROR: Unable to open cmake file "+cmakeIncludeFile+" for writing!")
         returnStatus = False
 
     return returnStatus
@@ -78,7 +89,7 @@ def GenerateLanguageSelectFiles(jsonLangFileName, jsonStringsFilename, filePath,
     langStatus = langFileGen.generateLangFiles(filePath, incfileSubdir, srcfileSubdir, tstfileSubdir)
 
     if (baseStatus and langStatus):
-        GenerateCmake(baseFileGen, langFileGen, [incfileSubdir], filePath)
+        GenerateCmake(baseFileGen, langFileGen, [incfileSubdir], mockfileSubdir, filePath)
 
 def MakeSubdir(basefilePath, subDirName):
     """!

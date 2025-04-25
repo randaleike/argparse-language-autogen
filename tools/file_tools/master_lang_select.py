@@ -32,8 +32,7 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
     """!
     Methods for master language select function generation
     """
-    def __init__(self, functionName = "getLocalParserStringListInterface", objectName = "ParserStringListInterface",
-                 dynamicCompileSwitch="DYNAMIC_INTERNATIONALIZATION"):
+    def __init__(self, functionName = "getLocalParserStringListInterface", objectName = "ParserStringListInterface"):
         """!
         @brief MasterSelectFunctionGenerator constructor
         @param functionName {string} Function name to be used for generation
@@ -50,7 +49,6 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         self.briefDesc = "Determine the OS use OS specific functions to determine the correct local language" \
                          "based on the OS specific local language setting and return the correct class object"
         self.doxyCommentGen = CDoxyCommentGenerator()
-        self.dynamicCompileSwitch = dynamicCompileSwitch
 
     def getFunctionName(self):
         return self.selectFunctionName
@@ -92,22 +90,18 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         firstOs = True
         for osSelector in osLangSelectors:
             if firstOs:
-                functionBody.append("#if "+osSelector.getOsDynamicDefine()+"\n")
+                functionBody.append("#if "+osSelector.getOsDefine()+"\n")
                 firstOs = False
             else:
-                functionBody.append("#elif "+osSelector.getOsDynamicDefine()+"\n")
+                functionBody.append("#elif "+osSelector.getOsDefine()+"\n")
             functionBody.extend(osSelector.genReturnFunctionCall(bodyIndent))
 
-        # Add the dynamic but unknown OS #elif case
-        functionBody.append("#elif defined("+self.dynamicCompileSwitch+")\n")
-        functionBody.append(bodyPrefix+"#error No dynamic language generation method defined for this OS\n")
-
         # Add the #else case
-        functionBody.append("#else // not defined("+self.dynamicCompileSwitch+")\n")
-        functionBody.append(bodyPrefix+"#error Dynamic language generation must be defined\n")
+        functionBody.append("#else // not defined os\n")
+        functionBody.append(bodyPrefix+"#error No language generation method defined for this OS\n")
 
         # Complete the function
-        functionBody.append("#endif // defined os and defined("+self.dynamicCompileSwitch+")\n")
+        functionBody.append("#endif // defined os\n")
         functionBody.append(self.genFunctionEnd())
         outfile.writelines(functionBody)
 
@@ -152,23 +146,19 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         expectedParser = "localStringParser"
         for osSelector in osLangSelectors:
             if firstOs:
-                testBody.append("#if "+osSelector.getOsDynamicDefine()+"\n")
+                testBody.append("#if "+osSelector.getOsDefine()+"\n")
                 firstOs = False
             else:
-                testBody.append("#elif "+osSelector.getOsDynamicDefine()+"\n")
+                testBody.append("#elif "+osSelector.getOsDefine()+"\n")
             testBody.append(bodyIndent+"// Get the expected value\n")
             testBody.extend(osSelector.genUnitTestFunctionCall(expectedParser, bodyIndentIndex))
 
-        # Add the dynamic but unknown OS #elif case
-        testBody.append("#elif defined("+self.dynamicCompileSwitch+")\n")
-        testBody.append(bodyIndent+"#error No dynamic language generation defined for this OS\n")
-
         # Add the #else case
-        testBody.append("#else // not defined("+self.dynamicCompileSwitch+")\n")
-        testBody.append(bodyIndent+"#error Dynamic language generation must be defined\n")
+        testBody.append("#else // not defined os\n")
+        testBody.append(bodyIndent+"#error No language generation defined for this OS\n")
 
         # Complete the function
-        testBody.append("#endif // defined os and defined("+self.dynamicCompileSwitch+")\n")
+        testBody.append("#endif // defined os\n")
         getExpectedVal = expectedParser+"->"+getIsoMethod+"().c_str()"
         testVarTest = testVar+"->"+getIsoMethod+"().c_str()"
         testBody.append("\n") # whitespace for readability
