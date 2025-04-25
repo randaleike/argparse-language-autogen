@@ -346,8 +346,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         baseClassName = StringClassNameGen.getBaseClassName()
         mockFile.writelines(self.genClassOpen(self.mockClassName,
                                               "Mock Parser error/help string generation interface",
-                                              "public "+baseClassName,
-                                              "final"))
+                                              "public "+baseClassName))
         mockFile.writelines(["    public:\n"])
 
         # Add default Constructor/destructor definitions
