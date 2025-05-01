@@ -24,12 +24,10 @@ File tools
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-__version__ = '1.0.0.0'
-__all__ = ["string_class_tools", "linux_lang_select", "windows_lang_select",
-           "static_lang_select", "master_lang_select"]
+__version__ = '0.8.1.0'
+__all__ = ["jsonHelper", "jsonLanguageDescriptionList", "jsonStringClassDescription", "param_return_tools"]
 
-from . import string_class_tools
-from . import linux_lang_select
-from . import windows_lang_select
-from . import static_lang_select
-from . import master_lang_select
+from . import jsonHelper
+from . import jsonLanguageDescriptionList
+from . import jsonStringClassDescription
+from . import param_return_tools

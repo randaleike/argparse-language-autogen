@@ -31,7 +31,7 @@ class SubTextMarker(object):
     """!
     @brief Regex trimmed substrng text and location information
     """
-    def __init__(self, newText, originalStart):
+    def __init__(self, newText:str, originalStart:int):
         """!
         * @brief Process the input string to remove leading and trailing white space and store the results
         *
@@ -47,7 +47,7 @@ class CopyrightYearsList(object):
     """!
     Parse dates return data structure
     """
-    def __init__(self, yearString, yearRegx, baseIndex = 0):
+    def __init__(self, yearString:str, yearRegx:str, baseIndex:int = 0):
         """!
         Default constructor
 
@@ -70,7 +70,7 @@ class CopyrightYearsList(object):
             if (yearMatch.end() + baseIndex) > self._end:
                 self._end = yearMatch.end() + baseIndex
 
-    def _parseYearFromDate(self, yearStr):
+    def _parseYearFromDate(self, yearStr:str)->int:
         """!
         @brief Convert year text to year number
         @param yearStr {string} - Date string to convert
@@ -80,9 +80,9 @@ class CopyrightYearsList(object):
         if yearMatch is not None:
             return int(yearMatch.group())
         else:
-            return 1999
+            return 1970
 
-    def isValid(self):
+    def isValid(self)->bool:
         """!
         @brief - Determine if anything was added to the list
 
@@ -93,7 +93,7 @@ class CopyrightYearsList(object):
         else:
             return False
 
-    def getNumericYearList(self):
+    def getNumericYearList(self)->list:
         """!
         @brief Pull the numeric year data from the years list
 
@@ -112,7 +112,7 @@ class CopyrightYearsList(object):
         else:
             return None
 
-    def getLastEntry(self):
+    def getLastEntry(self)->int|None:
         """!
         @brief Get the last year entry
 
@@ -123,7 +123,7 @@ class CopyrightYearsList(object):
         else:
             return None
 
-    def getStartingStringIndex(self):
+    def getStartingStringIndex(self)->int:
         """!
         @brief Return the starting index of first year in the year list.
                Returns -1 if the list is empty.
@@ -132,7 +132,7 @@ class CopyrightYearsList(object):
         """
         return self._start
 
-    def getEndingStringIndex(self):
+    def getEndingStringIndex(self)->int:
         """!
         @brief Return the ending index of last year in the year list.
                Returns -1 if the list is empty.
@@ -151,15 +151,15 @@ class CopyrightParse(object):
     years change.
     """
 
-    def __init__(self, copyrightSearchMsg, copyrightSearchTag, copyrightSearchDate,
-                 copyrightOwnerSpec, useUnicode = False):
+    def __init__(self, copyrightSearchMsg:str, copyrightSearchTag:str, copyrightSearchDate:str,
+                 copyrightOwnerSpec:str, useUnicode:bool = False):
         """!
         @brief Constructor
 
         @param copyrightSearchMsg(string) - Regular expresssion string used to identify
                                             the copyright word from the input
                                             copyright message string
-        @param copyrightSearchTag(strithisng) - Regular expresssion string used to identify
+        @param copyrightSearchTag(string) - Regular expresssion string used to identify
                                             the copyright tag marker from the input
                                             copyright message string
         @param copyrightSearchDate(string) - Regular expresssion string used to parse the
@@ -193,7 +193,7 @@ class CopyrightParse(object):
         self.copyrightYearList = []                     ##!< List of dates from the existing input copyright
                                                         #    message string
 
-    def isCopyrightTextValid(self):
+    def isCopyrightTextValid(self)->bool:
         """!
         @brief Determine if a previous parse was run and valid
 
@@ -201,7 +201,7 @@ class CopyrightParse(object):
         """
         return self.copyrightTextValid
 
-    def getCopyrightText(self):
+    def getCopyrightText(self)->str:
         """!
         @brief Get the last valid parsed copyright text
 
@@ -209,7 +209,7 @@ class CopyrightParse(object):
         """
         return self.copyrightText
 
-    def getCopyrightDates(self):
+    def getCopyrightDates(self)->list:
         """!
         @brief Get the last valid parsed copyright date list
 
@@ -217,7 +217,7 @@ class CopyrightParse(object):
         """
         return self.copyrightYearList
 
-    def addOwner(self, newOwner):
+    def addOwner(self, newOwner:str)->bool:
         """!
         @brief Add an owner to the ownership string
 
@@ -232,7 +232,7 @@ class CopyrightParse(object):
         else:
             return False
 
-    def replaceOwner(self, newOwner):
+    def replaceOwner(self, newOwner:str)->bool:
         """!
         @brief Replace the ownership string with a new ownership string
 
@@ -243,7 +243,7 @@ class CopyrightParse(object):
         self.copyrightTextOwner = newOwner
         return True
 
-    def _parseEolString(self, testString, baseIndex = 0):
+    def _parseEolString(self, testString:str, baseIndex:int = 0)->SubTextMarker|None:
         """!
         @brief Parse the EOL text string out of the message substring.
 
@@ -272,7 +272,7 @@ class CopyrightParse(object):
 
         return eolData
 
-    def _parseOwnerString(self, testString, baseIndex = 0):
+    def _parseOwnerString(self, testString:str, baseIndex:int = 0)->SubTextMarker|None:
         """!
         @brief Parse the owner string out of the message substring.
 
@@ -306,7 +306,7 @@ class CopyrightParse(object):
 
         return ownerData
 
-    def _parseYears(self, currentMsg):
+    def _parseYears(self, currentMsg:str)->CopyrightYearsList:
         """!
         @brief Parse the dates from the input string
 
@@ -316,7 +316,7 @@ class CopyrightParse(object):
         """
         return CopyrightYearsList(currentMsg, self.copyrightRegxYear, 0)
 
-    def _parseCopyrightComponents(self, currentMsg):
+    def _parseCopyrightComponents(self, currentMsg:str)->tuple:
         """!
         @brief Parse the copyright line into it's components
 
@@ -332,7 +332,7 @@ class CopyrightParse(object):
 
         return msgMarker, tagMarker, yearList
 
-    def _checkComponents(self, msgMarker, tagMarker, yearList, owner):
+    def _checkComponents(self, msgMarker:re.Match, tagMarker:re.Match, yearList:CopyrightYearsList, owner:SubTextMarker)->bool:
         """!
         @brief Determine if the current line matches the copyright search criteria
 
@@ -355,10 +355,13 @@ class CopyrightParse(object):
             # Missing one or more components
             return False
 
-    def _setParsedCopyrightData(self, currentMsg, msgMarker, tagMarker, yearList, owner, solText, eolMarker):
+    def _setParsedCopyrightData(self, currentMsg:str, msgMarker:re.Match, tagMarker:re.Match,
+                                yearList:CopyrightYearsList, owner:SubTextMarker, solText:str,
+                                eolMarker:SubTextMarker):
         """!
         @brief Set the parsed copyright data elements
 
+        @param currentMsg {string} - Current message
         @param msgMarker {re.Match} - Copyright match output or None if no match found
         @param tagMarker {re.Match} - Copyright tag match output or None if no match found
         @param yearList {CopyrightYearsList} - List of copyright year matches
@@ -395,11 +398,13 @@ class CopyrightParse(object):
         if self.copyrightTextValid:
             self.copyrightText = currentMsg
 
-    def _addEolText(self, newCopyRightMsg):
+    def _addEolText(self, newCopyRightMsg:str)->str:
         """!
         @brief Append the EOL text to the new copyright message
 
         @param newCopyRightMsg (string) Current copyright message to append to
+
+        @return string newCopyRightMsg with self.copyrightTextEol appended
         """
         # Determine if eol text exists and should be added
         if self.copyrightTextEol is not None:
@@ -415,7 +420,7 @@ class CopyrightParse(object):
 
         return newCopyRightMsg
 
-    def _buildCopyrightYearString(self, createYear, lastModYear = None):
+    def _buildCopyrightYearString(self, createYear:int, lastModYear:int|None = None)->str:
         """!
         @brief Build the proper copyright year string
 
@@ -442,10 +447,12 @@ class CopyrightParseOrder1(CopyrightParse):
     Expected order1 = CopyrightMsg CopyrightTag CopyrightYears CopyrightOwner
     """
 
-    def isCopyrightLine(self, copyrightString):
+    def isCopyrightLine(self, copyrightString:str)->bool:
         """!
         @brief Check if the input text is a copyright message with
                all the required components and in the correct order
+        @param copyrightString (string) Line of text to check
+        @return boolean - True if contents match regex criteria and order is correct, else False
         """
         match = False   # assume failure
 
@@ -468,7 +475,7 @@ class CopyrightParseOrder1(CopyrightParse):
 
         return match
 
-    def parseCopyrightMsg(self, copyrightString):
+    def parseCopyrightMsg(self, copyrightString:str):
         """!
         @brief Parse the input copyright string into it's components
 
@@ -491,8 +498,8 @@ class CopyrightParseOrder1(CopyrightParse):
         # Assign data values
         self._setParsedCopyrightData(copyrightString, msgMarker, tagMarker, yearList, ownerData, solText, eolData)
 
-    def _createCopyrightMsg(self, owner, copyrightMsgText, copyrightTagText,
-                            createYear, lastModYear = None):
+    def _createCopyrightMsg(self, owner:str, copyrightMsgText:str, copyrightTagText:str,
+                            createYear:int, lastModYear:int|None = None)->str:
         """!
         @brief Generate a new multiple year copyright message for the input
                creation year with the parsed copyright message, tag and owner
@@ -513,7 +520,7 @@ class CopyrightParseOrder1(CopyrightParse):
 
         return newCopyRightMsg
 
-    def buildNewCopyrightMsg(self, createYear, lastModYear = None, addStartEnd = False):
+    def buildNewCopyrightMsg(self, createYear:int, lastModYear:int|None = None, addStartEnd:bool = False)->str:
         """!
         @brief Generate a new copyright message for the input years
 
@@ -553,10 +560,12 @@ class CopyrightParseOrder2(CopyrightParse):
     Expected order2 = CopyrightOwner CopyrightMsg CopyrightTag CopyrightYears
     """
 
-    def isCopyrightLine(self, copyrightString):
+    def isCopyrightLine(self, copyrightString:str)->bool:
         """!
         @brief Check if the input text is a copyright message with
                all the required components and in the correct order
+        @param copyrightString (string) Line of text to check
+        @return boolean - True if contents match regex criteria and order is correct, else False
         """
         match = False   # assume failure
 
@@ -577,7 +586,7 @@ class CopyrightParseOrder2(CopyrightParse):
 
         return match
 
-    def parseCopyrightMsg(self, copyrightString):
+    def parseCopyrightMsg(self, copyrightString:str):
         """!
         @brief Parse the input copyright string into it's components
 
@@ -599,8 +608,8 @@ class CopyrightParseOrder2(CopyrightParse):
         # Assign data values
         self._setParsedCopyrightData(copyrightString, msgMarker, tagMarker, yearList, ownerData, solText, eolData)
 
-    def _createCopyrightMsg(self, owner, copyrightMsgText, copyrightTagText,
-                            createYear, lastModYear = None):
+    def _createCopyrightMsg(self, owner:str, copyrightMsgText:str, copyrightTagText:str,
+                            createYear:int, lastModYear:int|None = None)->str:
         """!
         @brief Generate a new multiple year copyright message for the input
                creation year with the parsed copyright message, tag and owner
@@ -621,7 +630,7 @@ class CopyrightParseOrder2(CopyrightParse):
 
         return newCopyRightMsg
 
-    def buildNewCopyrightMsg(self, createYear, lastModYear = None, addStartEnd = False):
+    def buildNewCopyrightMsg(self, createYear:int, lastModYear:int|None = None, addStartEnd:bool = False)->str:
         """!
         @brief Generate a new copyright message for the input years
 
@@ -693,11 +702,12 @@ class CopyrightParseEnglish(CopyrightParseOrder1):
         super().__init__(copyrightSearchMsg, copyrightSearchTag, copyrightSearchDate,
                          copyrightOwnerSpec, useUnicode)
 
-    def createCopyrightMsg(self, owner, createYear, lastModYear = None):
+    def createCopyrightMsg(self, owner:str, createYear:int, lastModYear:int|None = None):
         """!
         @brief Generate a new multiple year copyright message for the input
                creation year with the parsed copyright message, tag and owner
 
+        @param owner (string): Owner string to use
         @param createYear (integer): File creation date
         @param lastModYear(integer): File last modification date
         @param owner (string): Copyright owner text
@@ -726,7 +736,7 @@ class CopyrightGenerator(object):
             self.parser = parser
 
     @staticmethod
-    def _isMultiYear(createYear, lastModYear):
+    def _isMultiYear(createYear:int, lastModYear:int|None)->bool:
         """!
         Determine if this is a multi or single year message
 
@@ -743,7 +753,7 @@ class CopyrightGenerator(object):
         else:
             return False
 
-    def _getNewCopyrightMsg(self, createYear, lastModYear = None):
+    def _getNewCopyrightMsg(self, createYear:int, lastModYear:int|None = None)->tuple:
         """
         @brief Determine if a new copyright message is required and return if message changed
                and the new copyright message
@@ -795,7 +805,7 @@ class CopyrightGenerator(object):
 
         return msgChanged, newCopyRightMsg
 
-    def _getDefaultCopyrightMsg(self, createYear, lastModYear = None):
+    def _getDefaultCopyrightMsg(self, createYear:int, lastModYear:int|None = None)->tuple:
         """!
         @brief Generate a new multiyear copyright message using default values
 
@@ -808,7 +818,7 @@ class CopyrightGenerator(object):
         newCopyRightMsg =  self.parser.createCopyrightMsg("None", createYear, lastModYear)
         return True, newCopyRightMsg
 
-    def getNewCopyrightMsg(self, createYear, lastModYear = None):
+    def getNewCopyrightMsg(self, createYear:int, lastModYear:int|None = None)->tuple:
         """!
         @brief Determine if a new copyright message is required and return if message changed
                and the new copyright message
@@ -824,7 +834,7 @@ class CopyrightGenerator(object):
         else:
             return self._getDefaultCopyrightMsg(createYear, lastModYear)
 
-    def createCopyrightTransition(self, createYear, transitionYear, lastModYear, newOwner):
+    def createCopyrightTransition(self, createYear:int, transitionYear:int, lastModYear:int, newOwner:str)->tuple:
         """!
         @brief Modify the old copyright message to end with the transition year input and
                create a new copyright message with the transition year and new owner
@@ -844,7 +854,7 @@ class CopyrightGenerator(object):
         newCopyRightMsg = self.parser.buildNewCopyrightMsg(transitionYear, lastModYear, True)
         return msgChanged, originalCopyright, newCopyRightMsg
 
-    def addCopyrightOwner(self, createYear, lastModYear, newOwner):
+    def addCopyrightOwner(self, createYear:int, lastModYear:int, newOwner:str)->tuple:
         """!
         @brief Modify the old copyright message to end with the transition year input and
                create a new copyright message with the transition year and new owner
@@ -863,7 +873,7 @@ class CopyrightGenerator(object):
         else:
             return False, None
 
-    def createNewCopyright(self, owner, createYear, lastModYear = None):
+    def createNewCopyright(self, owner:str, createYear:int, lastModYear:int|None = None)->str:
         """!
         @brief Create a new copyright message from scratch
 
@@ -893,7 +903,7 @@ class CopyrightFinder(object):
         else:
             self._parser = parser
 
-    def findNextCopyrightMsg(self, inputFile, startOffset, endOffset = None):
+    def findNextCopyrightMsg(self, inputFile, startOffset:int, endOffset:int|None = None)->tuple:
         """!
         @brief Scan the current file from the startOffset location to find the next copyright messag
 
@@ -931,7 +941,7 @@ class CopyrightFinder(object):
 
         return copyrightFound, locationDict
 
-    def findCopyrightMsg(self, inputFile):
+    def findCopyrightMsg(self, inputFile)->tuple:
         """!
         @brief Scan the current file from the current location to find a copyright messge
 
@@ -943,7 +953,7 @@ class CopyrightFinder(object):
         """
         return self.findNextCopyrightMsg(inputFile, 0, None)
 
-    def findAllCopyrightMsg(self, inputFile):
+    def findAllCopyrightMsg(self, inputFile)->tuple:
         """!
         @brief Scan the current file from the current location to find a copyright comment block
         @return bool: True if copyright block is found, else false

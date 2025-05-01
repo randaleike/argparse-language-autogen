@@ -170,7 +170,7 @@ class EulaText(object):
     """!
     EULA text helper class
     """
-    def __init__(self, eulaType = None, customEula = None):
+    def __init__(self, eulaType:str|None = None, customEula:list|None = None):
         """!
         @breif Constuctor
 
@@ -191,7 +191,7 @@ class EulaText(object):
             self.eulaName = self.getEulaName(eulaType)
 
     @staticmethod
-    def getEulaText(eulaType):
+    def getEulaText(eulaType:str)->list|None:
         """!
         @brief Get the eula string list for the input EULA type.
 
@@ -208,7 +208,7 @@ class EulaText(object):
             return None
 
     @staticmethod
-    def getEulaName(eulaType):
+    def getEulaName(eulaType:str)->str|None:
         """!
         @brief Get the eula string list for the input EULA type.
 
@@ -216,7 +216,7 @@ class EulaText(object):
                                     GNU_V11, apache_v2_0, BSD_3clause
                                     or BSD_2clause
 
-        @return list or None: list of strings for the requested EULA or
+        @return string or None: Name strings for the requested EULA or
                                 None if the input eulaType is unknown.
         """
         # pylint: disable=locally-disabled, disable=C0201
@@ -227,7 +227,7 @@ class EulaText(object):
 
 
     @staticmethod
-    def _outputLine(lineText, maxLength = 80, pad = False):
+    def _outputLine(lineText:str, maxLength:int = 80, pad:bool = False)->str:
         """!
         @brief Format the raw EULA text to the appropriate line length
 
@@ -244,7 +244,7 @@ class EulaText(object):
             return lineText
 
     @staticmethod
-    def _outputMultiLine(rawText, maxLength = 80, pad = False):
+    def _outputMultiLine(rawText:str, maxLength:int = 80, pad:bool = False)->list:
         """!
         @brief Break the long EULA text string into a list of strings that do not
                exceed the maxLength input parameter
@@ -298,7 +298,7 @@ class EulaText(object):
 
         return formattedText
 
-    def formatEulaName(self, maxLength = 80, pad = False):
+    def formatEulaName(self, maxLength:int = 80, pad:bool = False)->str:
         """!
         @brief Format the raw EULA name to the appropriate line length
 
@@ -314,7 +314,7 @@ class EulaText(object):
             return self.eulaName
 
 
-    def formatEulaText(self, maxLength = 80, pad = False):
+    def formatEulaText(self, maxLength:int = 80, pad:bool = False)->list:
         """!
         @brief Format the raw EULA text to the appropriate line length
 

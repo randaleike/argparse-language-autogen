@@ -26,7 +26,7 @@ Common utility functions
 
 import re
 
-def MultiLineFormat(rawText, maxLength = 80, padchar = None):
+def MultiLineFormat(rawText:str, maxLength:int = 80, padchar:str|None = None)->list:
     """!
     @brief Break the long text string into a list of strings that do not
            exceed the maxLength input parameter

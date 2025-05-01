@@ -25,11 +25,7 @@ for the argparse libraries
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-import pathlib
-import os
-
 from file_tools.string_class_tools import StringClassNameGen
-from pathgen import FileNameGenerator
 from base_string_class import GenerateBaseLangFiles
 from lang_string_class import GenerateLangFiles
 

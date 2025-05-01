@@ -25,9 +25,9 @@ for the argparse libraries
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-from .common.file_gen_tools import ParamRetDict
-from .string_class_tools import BaseCppClassGenerator
+from .json_data.param_return_tools import ParamRetDict
 from .common.doxygen_gen_tools import CDoxyCommentGenerator
+from .string_class_tools import BaseCppClassGenerator
 
 class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
     """!

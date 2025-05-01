@@ -25,10 +25,8 @@ for the argparse libraries
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-from .common.param_return_tools import ParamRetDict
-from .common.file_gen_tools import GenerateCppFileHelper
-from .common.doxygen_gen_tools import CDoxyCommentGenerator
-
+from .json_data.param_return_tools import ParamRetDict
+from .common.cpp_file_gen_base import GenerateCppFileHelper
 from .string_name_generator import StringClassNameGen
 
 class BaseCppClassGenerator(GenerateCppFileHelper):
@@ -112,32 +110,19 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
     def getParserStringType(self):
         return "parserstr"
 
-    def declareStringListType(self):
-        return self.declareListType(self.getParserStringType())
-
-    def declareLANGIDListType(self):
-        return self.declareListType("LANGID")
-
-    def xlateGenericType(self, genericType, islist=False):
+    def xlateGenericType(self, genericType:str, typeMod:int=0):
         """!
         @brief Translate the generic type specification to the CPP equivilent
         @param genericType {string} Generic type name
-        @param islist {boolean} True if type is a list type, false if it a single value
+        @param typeMod {int} Type modification flags.
         @return tuble (string, boolean) CPP type spcification
                                         True if value is text, else false
         """
-        if islist:
-            if genericType in self.xlateMatrix.keys():
-                return self.declareListType(self.xlateMatrix[genericType]['type']), self.xlateMatrix[genericType]['isText']
-            else:
-                # Unknown return the same type name
-                return self.declareListType(genericType), False
+        if genericType in self.xlateMatrix.keys():
+            return self.declareType(self.xlateMatrix[genericType]['type'], typeMod), self.xlateMatrix[genericType]['isText']
         else:
-            if genericType in self.xlateMatrix.keys():
-                return self.xlateMatrix[genericType]['type'], self.xlateMatrix[genericType]['isText']
-            else:
-                # Unknown return the same type name
-                return genericType, False
+            # Unknown return the same type name
+            return self.declareType(genericType, typeMod), False
 
     def xlateReturnDict(self, genericReturnDict):
         """!
@@ -147,9 +132,9 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
         @return tuble (dictionary, boolean) - C translated return dictionary
                                               True if value is text, else false
         """
-        retType, retDesc, isList = ParamRetDict.getReturnData(genericReturnDict)
-        xlatedRetType, isText = self.xlateGenericType(retType, isList)
-        return ParamRetDict.buildReturnDict(xlatedRetType, retDesc, isList), isText
+        retType, retDesc, typeMod = ParamRetDict.getReturnData(genericReturnDict)
+        xlatedRetType, isText = self.xlateGenericType(retType, typeMod)
+        return ParamRetDict.buildReturnDictWithMod(xlatedRetType, retDesc, typeMod), isText
 
     def xlateParamDict(self, genericParamDict):
         """!
@@ -159,9 +144,9 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
         @return tuble (dictionary, boolean) - C translated param dictionary
                                               True if value is text, else false
         """
-        paramName, paramType, paramDesc, isList = ParamRetDict.getParamData(genericParamDict)
-        xlatedRetType, isText = self.xlateGenericType(paramType, isList)
-        return ParamRetDict.buildParamDict(paramName, xlatedRetType, paramDesc, isList), isText
+        paramName, paramType, paramDesc, typeMod = ParamRetDict.getParamData(genericParamDict)
+        xlatedRetType, isText = self.xlateGenericType(paramType, typeMod)
+        return ParamRetDict.buildParamDictWithMod(paramName, xlatedRetType, paramDesc, typeMod), isText
 
     def xlateParamList(self, genericParamList):
         """!
@@ -191,7 +176,6 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         self.versionTweak = 0
         self.autoToolName = self.__class__.__name__+self.getVersion()
 
-        self.doxyCommentGen = CDoxyCommentGenerator()
         self.groupName = "LocalLanguageSelection"
         self.groupDesc = "Local language detection and selection utility"
 

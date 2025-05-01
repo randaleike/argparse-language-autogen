@@ -51,7 +51,7 @@ class TextFileCommentBlock(object):
         self._inputFile = inputFile          ##!< File to parse and look for the copyright message
         self._foundtextStart = False
 
-    def _isCurrentLineCommentStart(self, currentLine):
+    def _isCurrentLineCommentStart(self, currentLine:str)->bool:
         """!
         @brief Determine if the input current line is the start of a comment block
 
@@ -69,7 +69,7 @@ class TextFileCommentBlock(object):
             else:
                 return False
 
-    def _isCurrentLineCommentEnd(self, currentLine):
+    def _isCurrentLineCommentEnd(self, currentLine:str)->bool:
         """!
         @brief Check if the line is the end of a comment block
 
@@ -134,14 +134,10 @@ class TextFileCommentBlock(object):
         return commentBlockFound
 
 class CommentParams(object):
-    cCommentParms = {'blockStart': "/*", 'blockEnd': "*/", 'blockLineStart': "", 'singleLine': "//",
-                     'doxyBlockStart':"/**", 'doxyLineStart':" * "}
-    pyCommentParms = {'blockStart': "\"\"\"", 'blockEnd':"\"\"\"", 'blockLineStart': "", 'singleLine': "#",
-                      'doxyBlockStart':"\"\"\"!", 'doxyLineStart':""}
-    shCommentParms = {'blockStart': None, 'blockEnd': None, 'blockLineStart': "#", 'singleLine': "#",
-                      'doxyBlockStart':"####################", 'doxyLineStart':"# "}
-    batCommentParms = {'blockStart': None, 'blockEnd': None, 'blockLineStart': "REM ", 'singleLine': "REM ",
-                      'doxyBlockStart':"REM ####################", 'doxyLineStart':"REM "}
+    cCommentParms =   {'blockStart': "/*", 'blockEnd': "*/", 'blockLineStart': "", 'singleLine': "//"}
+    pyCommentParms =  {'blockStart': "\"\"\"", 'blockEnd':"\"\"\"", 'blockLineStart': "", 'singleLine': "#"}
+    shCommentParms =  {'blockStart': None, 'blockEnd': None, 'blockLineStart': "#", 'singleLine': "#"}
+    batCommentParms = {'blockStart': None, 'blockEnd': None, 'blockLineStart': "REM ", 'singleLine': "REM ",}
 
     commentBlockDelim = {'.c':   cCommentParms,
                          '.cpp': cCommentParms,
@@ -155,7 +151,7 @@ class CommentParams(object):
                          }
 
     @staticmethod
-    def getCommentMarkers(filename):
+    def getCommentMarkers(filename:str)->dict|None:
         """!
         @brief Determine the comment marker values from the file name
 
@@ -178,7 +174,7 @@ class CommentBlock(object):
     """!
     Identify the start and end of a comment block
     """
-    def __init__(self, inputFile, commentMarkers = None):
+    def __init__(self, inputFile, commentMarkers:dict|None = None):
         """!
         @brief Constructor
 
@@ -197,7 +193,7 @@ class CommentBlock(object):
         self._inputFile = inputFile         ##!< File to parse and look for the copyright message
         self.commentData = commentMarkers   ##!< Comment block markers typical for the file type
 
-    def _isCurrentLineCommentStart(self, currentLine):
+    def _isCurrentLineCommentStart(self, currentLine:str)->bool:
         """!
         @brief Determine if the input current line is the start of a comment block
 
@@ -211,7 +207,7 @@ class CommentBlock(object):
                 return True
         return False
 
-    def _isPreviousLineCommentStart(self, previousLine, currentLine):
+    def _isPreviousLineCommentStart(self, previousLine:str, currentLine:str)->bool:
         """!
         @brief Check if the previous line is the start of a comment block
 
@@ -226,7 +222,7 @@ class CommentBlock(object):
                 return True
         return False
 
-    def _isCurrentLineCommentEnd(self, currentLine):
+    def _isCurrentLineCommentEnd(self, currentLine:str)->bool:
         """!
         @brief Check if the line is the end of a comment block
 
@@ -240,7 +236,7 @@ class CommentBlock(object):
                 return True
         return False
 
-    def _isPreviousLineCommentEnd(self, previousLine, currentLine):
+    def _isPreviousLineCommentEnd(self, previousLine:str, currentLine:str)->bool:
         """!
         @brief Check if the previous line is the end of a comment block
 
@@ -255,7 +251,7 @@ class CommentBlock(object):
                 return True
         return False
 
-    def findNextCommentBlock(self):
+    def findNextCommentBlock(self)->bool:
         """!
         @brief Scan the current file from the current location to find a copyright comment block
 
@@ -309,7 +305,7 @@ class CommentGenerator:
     """!
     @brief Comment block generation helper class
     """
-    def __init__(self, commentMarkers, lineLength = None, eoltext = None, useSingleLine = False):
+    def __init__(self, commentMarkers:dict, lineLength:int|None = None, eoltext:str|None = None, useSingleLine:bool = False):
         """!
         @brief Constructor
 
@@ -337,7 +333,7 @@ class CommentGenerator:
         else:
             self.eolLength = 0
 
-    def _appendEoltext(self, newLine):
+    def _appendEoltext(self, newLine:str)->str:
         """!
         @brief Append end of line text if needed
 
@@ -351,7 +347,7 @@ class CommentGenerator:
 
         return newLine
 
-    def _padCommentLine(self, newLine, fillchar, eolLength = 0):
+    def _padCommentLine(self, newLine:str, fillchar:str, eolLength:int = 0)->str:
         """!
         @brief Pad comment line with fill character
 
@@ -368,7 +364,7 @@ class CommentGenerator:
                 newLine = newLine.ljust(padLen, fillchar)
         return newLine
 
-    def _padAndAppendEolCommentLine(self, newLine, fillchar, eolLength = 0):
+    def _padAndAppendEolCommentLine(self, newLine:str, fillchar:str, eolLength:int = 0)->str:
         """!
         @brief Pad comment line with fill character and append EOL text if needed
 
@@ -383,7 +379,7 @@ class CommentGenerator:
         newLine = self._appendEoltext(newLine)
         return newLine
 
-    def buildCommentBlockHeader(self, lines = 1, fillchar='-'):
+    def buildCommentBlockHeader(self, lines:int = 1, fillchar:str = '-')->list:
         """!
         @brief Build a comment block header string list
 
@@ -418,7 +414,7 @@ class CommentGenerator:
 
         return headerText
 
-    def buildCommentBlockFooter(self, lines = 1, fillchar='-'):
+    def buildCommentBlockFooter(self, lines:int = 1, fillchar:str = '-')->list:
         """!
         @brief Build a comment block footer string list
 
@@ -466,7 +462,7 @@ class CommentGenerator:
 
         return footerText
 
-    def wrapCommentLine(self, text, fillchar=' '):
+    def wrapCommentLine(self, text:str, fillchar:str = ' ')->str:
         """!
         @brief Wrap and pad the input text line with the specified comment parameters
 
@@ -490,3 +486,6 @@ class CommentGenerator:
         newLine = self._padAndAppendEolCommentLine(newLine, fillchar, self.eolLength)
 
         return newLine
+
+    def generateSingleLineComment(self, text:str)->str:
+        return self.commentData['singleLine']+" "+text

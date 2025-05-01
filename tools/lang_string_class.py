@@ -27,23 +27,24 @@ for the argparse libraries
 
 import os
 
-from jsonLanguageDescriptionList import LanguageDescriptionList
-from jsonStringClassDescription import StringClassDescription
-
-from file_tools.common.param_return_tools import ParamRetDict
+from file_tools.json_data.jsonLanguageDescriptionList import LanguageDescriptionList
+from file_tools.json_data.jsonStringClassDescription import StringClassDescription
+from file_tools.json_data.jsonStringClassDescription import TranslationTextParser
+from file_tools.json_data.param_return_tools import ParamRetDict
 
 from file_tools.string_name_generator import StringClassNameGen
 from file_tools.string_class_tools import BaseStringClassGenerator
 
 class GenerateLangFiles(BaseStringClassGenerator):
-    def __init__(self, jsonLangFileName, jsonStringsFilename, owner = None, eulaName = None):
+    def __init__(self, languageList:LanguageDescriptionList, classStrings:StringClassDescription,
+                 owner:str|None = None, eulaName:str|None = None):
         """!
         @brief GenerateLangFiles constructor
 
-        @param jsonLangFileName {string} Path/Filename of the JSON language list file to use
-        @param jsonStringsFilename {string} Path/Filename of the JSON property/translate string file to use
-        @param owner {string} Owner name to use in the copyright header message or None to use tool name
-        @param eulaName {string} EULA text to use in the header message or None to default MIT Open
+        @param languageList {StringClassDescription} JSON language list object
+        @param classStrings {LanguageDescriptionList} JSON property/translate string object to use
+        @param owner {string|None} Owner name to use in the copyright header message or None to use tool name
+        @param eulaName {string|None} EULA text to use in the header message or None to default MIT Open
         """
         super().__init__(owner, eulaName)
         self.versionMajor = 1
@@ -51,8 +52,8 @@ class GenerateLangFiles(BaseStringClassGenerator):
         self.versionPatch = 0
         self.versionTweak = 0
 
-        self.jsonLangData = LanguageDescriptionList(jsonLangFileName)
-        self.jsonStringsData = StringClassDescription(jsonStringsFilename)
+        self.jsonLangData = languageList
+        self.jsonStringsData = classStrings
         self.nameSpaceName = StringClassNameGen.getNamespaceName()
 
         self.langFileNames = {}
@@ -145,7 +146,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         """
         returnType = ParamRetDict.getReturnType(propertyReturn)
         codeTxt = []
-        if ParamRetDict.isReturnList(propertyReturn):
+        if self.isReturnList(propertyReturn):
             # List case
             dataList = self.jsonLangData.getLanguagePropertyData(langName, propertyName)
             codeTxt.append(returnType+" returnData;")
@@ -255,8 +256,10 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @param inlineStreamDescList {tuple list} Stream output tuple list
         @return string - Inline code
         """
-        streamString = StringClassNameGen.getParserStrStreamType()+" parserstr;  parserstr"
-        streamString += StringClassNameGen.assembleStream(streamDescList)
+        streamName = "parserstr"
+        streamString = StringClassNameGen.getParserStrStreamType()+" "+streamName+"; "
+        streamString += streamName
+        streamString += TranslationTextParser.assembleStream(streamDescList, "<<")
         streamString += "; return parserstr.str();"
         return streamString
 
@@ -416,7 +419,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         # Build the test assertion
         if isRetText:
-            if ParamRetDict.isReturnList(xlatedRetDict):
+            if self.isReturnList(xlatedRetDict):
                 codeText.append(bodyIndent+"for (auto const &item : output)\n")
                 codeText.append(bodyIndent+"{\n")
                 forBodyIndent = bodyIndent+"".rjust(4, ' ')
@@ -487,7 +490,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         # Build the expected string
         targetLang = self.jsonLangData.getLanguageIsoCodeData(langName)
         stringData = self.jsonStringsData.getTranlateMethodTextData(translateMethodName, targetLang)
-        expectedString = StringClassNameGen.assembleTestReturnString(stringData, self.testParamValues)
+        expectedString = TranslationTextParser.assembleTestReturnString(stringData, self.testParamValues)
 
         # Build the assertion test
         assertText = "EXPECT_STREQ(\""+expectedString+"\", output.c_str());\n"

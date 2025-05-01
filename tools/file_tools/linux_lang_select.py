@@ -26,7 +26,7 @@ for the argparse libraries
 #==========================================================================
 
 import os
-from .common.param_return_tools import ParamRetDict
+from .json_data.param_return_tools import ParamRetDict
 from .common.doxygen_gen_tools import CDoxyCommentGenerator
 from .string_class_tools import BaseCppClassGenerator
 

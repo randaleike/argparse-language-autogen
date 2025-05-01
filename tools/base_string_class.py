@@ -27,28 +27,28 @@ for the argparse libraries
 
 import os
 
-from jsonLanguageDescriptionList import LanguageDescriptionList
-from jsonStringClassDescription import StringClassDescription
 from file_tools.string_name_generator import StringClassNameGen
-
 from file_tools.string_class_tools import BaseStringClassGenerator
-
 from file_tools.linux_lang_select import LinuxLangSelectFunctionGenerator
 from file_tools.windows_lang_select import WindowsLangSelectFunctionGenerator
 # Add additional OS lang select classes here
 
 from file_tools.master_lang_select import MasterSelectFunctionGenerator
 
+from file_tools.json_data.jsonLanguageDescriptionList import LanguageDescriptionList
+from file_tools.json_data.jsonStringClassDescription import StringClassDescription
+
 
 class GenerateBaseLangFiles(BaseStringClassGenerator):
-    def __init__(self, jsonLangFileName, jsonStringsFilename, owner = None, eulaName = None):
+    def __init__(self, languageList:LanguageDescriptionList, classStrings:StringClassDescription,
+                 owner:str|None = None, eulaName:str|None = None):
         """!
         @brief GenerateBaseLangFile constructor
 
-        @param jsonLangFileName {string} Path/Filename of the JSON language list file to use
-        @param jsonStringsFilename {string} Path/Filename of the JSON property/translate string file to use
-        @param owner {string} Owner name to use in the copyright header message or None to use tool name
-        @param eulaName {string} EULA text to use in the header message or None to default MIT Open
+        @param languageList {StringClassDescription} JSON language list object
+        @param classStrings {LanguageDescriptionList} JSON property/translate string object to use
+        @param owner {string|None} Owner name to use in the copyright header message or None to use tool name
+        @param eulaName {string|None} EULA text to use in the header message or None to default MIT Open
         """
         super().__init__(owner, eulaName)
         self.versionMajor = 1
@@ -56,8 +56,8 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.versionPatch = 0
         self.versionTweak = 1
 
-        self.jsonLangData = LanguageDescriptionList(jsonLangFileName)
-        self.jsonStringsData = StringClassDescription(jsonStringsFilename)
+        self.jsonLangData = languageList
+        self.jsonStringsData = classStrings
 
         self.osLangSelectList = [LinuxLangSelectFunctionGenerator(self.jsonLangData),
                                  WindowsLangSelectFunctionGenerator(self.jsonLangData)

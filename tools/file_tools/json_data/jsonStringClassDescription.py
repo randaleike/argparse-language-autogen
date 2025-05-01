@@ -28,17 +28,216 @@ for the argparse libraries
 import re
 import json
 
-from pathgen import FileNameGenerator
-from file_tools.common.param_return_tools import ParamRetDict
-from file_tools.string_name_generator import StringClassNameGen
-from jsonLanguageDescriptionList import LanguageDescriptionList
+from .jsonHelper import JsonHelper
+from .param_return_tools import ParamRetDict
+from .jsonLanguageDescriptionList import LanguageDescriptionList
 
-class StringClassDescription(object):
+class TranslationTextParser(object):
+    """!
+    Translation text helper functions
+    """
+    parsedTypeText    = 'text'
+    parsedTypeParam   = 'param'
+    parsedTypeSpecial = 'special'
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def makeTextEntry(textBlock:str)->tuple:
+        return (TranslationTextParser.parsedTypeText, textBlock)
+
+    @staticmethod
+    def makeSpecialCharEntry(textBlock:str)->tuple:
+        return (TranslationTextParser.parsedTypeSpecial, textBlock[0])
+
+    @staticmethod
+    def makeParamEntry(paramName:str)->tuple:
+        return (TranslationTextParser.parsedTypeParam, paramName)
+
+    @staticmethod
+    def parseTextBlock(textBlock:str)->list:
+        """!
+        @brief Convert the input string to an output string stream
+        @param baseString {string} String to convert
+        @return list of dictionaries - List of dictionary entries descibing the parsed string
+        """
+        matchList = re.finditer(r'\\|\"', textBlock)
+
+        stringList = []
+        previousEnd = 0
+        for matchData in matchList:
+            # Add text data prior to first match if any
+            if matchData.start() > previousEnd:
+                rawText = r'{}'.format(textBlock[previousEnd:matchData.start()])
+                stringList.append(TranslationTextParser.makeTextEntry(rawText))
+
+            # Add the matched parameter
+            stringList.append(TranslationTextParser.makeSpecialCharEntry(matchData.group()))
+            previousEnd = matchData.end()
+
+        # Add the trailing string
+        if previousEnd < len(textBlock):
+            rawText = r'{}'.format(textBlock[previousEnd:])
+            stringList.append(TranslationTextParser.makeTextEntry(rawText))
+
+        return stringList
+
+    @staticmethod
+    def parseTranslateString(baseString:str)->list:
+        """!
+        @brief Convert the input string to an output string stream
+        @param baseString {string} String to convert
+        @return list of tuples - List of tuples descibing the parsed string
+                                 tuple[0] = type, TranslationTextParser.parsedTypeText or TranslationTextParser.parsedTypeParam
+                                 tuple[1] = data, if TranslationTextParser.parsedTypeText = text string
+                                                  if TranslationTextParser.parsedTypeParam = parameter name
+        """
+        matchList = re.finditer(r'@[a-zA-Z_][a-zA-Z0-9_]*@', baseString)
+
+        stringList = []
+        previousEnd = 0
+        for matchData in matchList:
+            # Add text data prior to first match if any
+            if matchData.start() > previousEnd:
+                rawText = r'{}'.format(baseString[previousEnd:matchData.start()])
+                stringList.extend(TranslationTextParser.parseTextBlock(rawText))
+
+            # Add the matched parameter
+            stringList.append(TranslationTextParser.makeParamEntry(matchData.group()[1:-1]))
+            previousEnd = matchData.end()
+
+        # Add the trailing string
+        if previousEnd < len(baseString):
+            rawText = r'{}'.format(baseString[previousEnd:])
+            stringList.extend(TranslationTextParser.parseTextBlock(rawText))
+
+        return stringList
+
+    @staticmethod
+    def assembleParsedStrData(stringTupleList:list)->str:
+        """!
+        @brief Assemble the input string description tuple list into a translation string
+        @param stringTupleList (list) List of string description tuples
+        @return string - Assempled text string ready for input into a language translation engine
+        """
+        returnText = ""
+        for descType, descData in stringTupleList:
+            if TranslationTextParser.parsedTypeText == descType:
+                returnText += descData
+            elif TranslationTextParser.parsedTypeParam == descType:
+                returnText += '@'
+                returnText += descData
+                returnText += '@'
+            elif TranslationTextParser.parsedTypeSpecial == descType:
+                returnText += descData
+            else:
+                raise TypeError("Unknown string description tuple type: "+descType)
+
+        return returnText
+
+    @staticmethod
+    def assembleStream(stringTupleList:list, streamOperator:str = "<<")->str:
+        """!
+        @brief Assemble the input string description tuple list into a translation string
+        @param stringTupleList (list) List of string description tuples
+        @param streamOperator (string) Language specific stream operator
+        @return string - Assempled text string ready for input into a language translation engine
+        """
+        returnText = ""
+        stringOpen = False
+
+        for descType, descData in stringTupleList:
+            if TranslationTextParser.parsedTypeText == descType:
+                if not stringOpen:
+                    returnText += " "
+                    returnText += streamOperator
+                    returnText += " \""
+                    stringOpen = True
+                returnText += descData
+            elif TranslationTextParser.parsedTypeParam == descType:
+                if stringOpen:
+                    returnText += "\" "
+                    returnText += streamOperator
+                    returnText += " "
+                    stringOpen = False
+                returnText += descData
+            elif TranslationTextParser.parsedTypeSpecial == descType:
+                if not stringOpen:
+                    returnText += " "
+                    returnText += streamOperator
+                    returnText += " \""
+                    stringOpen = True
+                returnText += "\\"+descData
+            else:
+                raise TypeError("Unknown string description tuple type: "+descType)
+
+        # Close the open string if present
+        if stringOpen:
+            returnText += "\""
+            stringOpen = False
+        return returnText
+
+    @staticmethod
+    def assembleTestReturnString(stringTupleList:list, valueXlateDict:dict)->str:
+        """!
+        @brief Assemble the input string description tuple list into a translation string
+        @param stringTupleList (list) List of string description tuples
+        @param valueXlateDict (dict) Dictionary of param names and expected values
+        @return string - Assempled text string ready for input into a language translation
+                         expected string
+        """
+        returnText = ""
+        for descType, descData in stringTupleList:
+            if TranslationTextParser.parsedTypeText == descType:
+                returnText += descData
+            elif TranslationTextParser.parsedTypeParam == descType:
+                returnText += valueXlateDict[descData]
+            elif TranslationTextParser.parsedTypeSpecial == descType:
+                returnText += "\\"+descData
+            else:
+                raise TypeError("Unknown string description tuple type: "+descType)
+        return returnText
+
+    @staticmethod
+    def isParsedTextType(parsedTuple:list)->bool:
+        """!
+        @brief Check if the input pgetParsedStrDataarsed translation string tuple is a text type
+        @return boolean - True if tuple[0] == TranslationTextParser.parsedTypeText
+                          else False
+        """
+        if parsedTuple[0] == TranslationTextParser.parsedTypeText:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def isParsedParamType(parsedTuple:list)->bool:
+        """!
+        @brief Check if the input parsed translation string tuple is a text type
+        @return boolean - True if tuple[0] == TranslationTextParser.parsedTypeParam
+                          else False
+        """
+        if parsedTuple[0] == TranslationTextParser.parsedTypeParam:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def getParsedStrData(parsedTuple:list)->bool:
+        """!
+        @brief Check if the input parsed translation string tuple is a text type
+        @return string - paredTuple data field
+        """
+        return parsedTuple[1]
+
+
+class StringClassDescription(JsonHelper):
     """!
     String object class definitions
     """
 
-    def __init__(self, stringDefFileName = None):
+    def __init__(self, stringDefFileName:str = None):
         """!
         @brief StringClassDescription constructor
 
@@ -46,20 +245,65 @@ class StringClassDescription(object):
                                            the language description data
         """
         if stringDefFileName is None:
-            self.filename = FileNameGenerator.getStringClassDescriptionFileName()
+            self.filename = "jsonStringClassDescription.json"
         else:
             self.filename = stringDefFileName
         try:
             langJsonFile = open(self.filename, 'r', encoding='utf-8')
         except FileNotFoundError:
-            self.stringJasonData = {'propertyMethods':{}, 'translateMethods':{}}
+            self.stringJasonData = {'baseClassName': "baseclass", 'propertyMethods':{}, 'translateMethods':{}}
         else:
             self.stringJasonData = json.load(langJsonFile)
             langJsonFile.close()
 
         self.transClient = None  # open it only if and when we need it
 
-    def _definePropertyFunctionEntry(self, propertyName = "", briefDesc = "", retType = "", retDesc = "", isList = False):
+    def setBaseClassName(self, className:str):
+        """!
+        @brief Update the base class name
+        @param className {string} Base class name for the methods
+        """
+        self.stringJasonData['baseClassName'] = className
+
+    def getBaseClassName(self)->str:
+        """!
+        @brief Get the base class name value
+        @return string - Base class name for the methods
+        """
+        return self.stringJasonData['baseClassName']
+
+    def getBaseClassNameWithNamespace(self, namespaceName:str, scopeOperator:str = '::')->str:
+        """!
+        @brief Return the base class name
+        @param namespaceName {string} Namespace name
+        @param scopeOperator {string} Programming language scope resolution operator
+        @return string Base sting class name
+        """
+        return namespaceName+scopeOperator+self.getBaseClassName()
+
+    def getLanguageClassName(self, languageName:str = None)->str:
+        """!
+        @brief Get the base class name value
+        @param languageName {string} Language name to append to the base class name or None
+        @return string - Generated class name for the methods
+        """
+        if languageName is None:
+            return self.stringJasonData['baseClassName']
+        else:
+            return self.stringJasonData['baseClassName']+languageName.capitalize()
+
+    def getLanguageClassNameWithNamespace(self, namespaceName:str, scopeOperator:str = '::', languageName:str = None)->str:
+        """!
+        @brief Return the base class name
+        @param namespaceName {string} Namespace name
+        @param scopeOperator {string} Programming language scope resolution operator
+        @param languageName {string} Language name to append to the base class name or None
+        @return string Base sting class name
+        """
+        return namespaceName+scopeOperator+self.getLanguageClassName(languageName)
+
+    def _definePropertyFunctionEntry(self, propertyName:str = "", briefDesc:str = "",
+                                     retType:str = "", retDesc:str = "", isList:bool = False)->dict:
         """!
         @brief Define a property string return function dictionary and
                return the entry to the caller
@@ -82,7 +326,11 @@ class StringClassDescription(object):
                         }
         return functionDict
 
-    def getIsoPropertyMethodName(self):
+    def getIsoPropertyMethodName(self)->str:
+        """!
+        @brief Get the get ISO 639-1 code method name
+        @return string - Get ISO code method name
+        """
         propertyMethodList = self.getPropertyMethodList()
         for methodName in propertyMethodList:
             if self.stringJasonData['propertyMethods'][methodName]['name'] == 'isoCode':
@@ -90,14 +338,14 @@ class StringClassDescription(object):
 
         return LanguageDescriptionList.getLanguageIsoPropertyMethodName()
 
-    def getPropertyMethodList(self):
+    def getPropertyMethodList(self)->list:
         """!
         @brief Return a list of property method name strings
         @return list of strings - Names of the property methods
         """
         return list(self.stringJasonData['propertyMethods'].keys())
 
-    def getPropertyMethodData(self, methodName):
+    def getPropertyMethodData(self, methodName:str)->tuple:
         """!
         @brief Return the input methodName data
         @return (tuple) - {string} Language descption property name,
@@ -108,7 +356,7 @@ class StringClassDescription(object):
         entry = self.stringJasonData['propertyMethods'][methodName]
         return entry['name'], entry['briefDesc'], entry['params'], entry['return']
 
-    def _defineTranslationDict(self, translateBaseLang = "en", translateText = None):
+    def _defineTranslationDict(self, translateBaseLang:str = "en", translateText:list = None)->dict:
         """!
         @brief Create a translation dictionary
         @param translateBaseLang {string} ISO 639-1 language code for the input translateText string
@@ -117,7 +365,7 @@ class StringClassDescription(object):
         """
         return {translateBaseLang: translateText}
 
-    def addManualTranslation(self, methodName:str, baseLang:str = "en", textData = None):
+    def addManualTranslation(self, methodName:str, baseLang:str = "en", textData:list = None)->bool:
         """!
         @brief Add language text to the function definition
         @param methodName {string} Translation method name to add the language text to
@@ -134,7 +382,7 @@ class StringClassDescription(object):
         else:
             return False
 
-    def _translateText(self, sourceLang:str, targetLang:str, text:str):
+    def _translateText(self, sourceLang:str, targetLang:str, text:str)->str:
         """!
         @brief Translate the input text
         @param sourceLang {string} ISO 639-1 language code of the input text
@@ -161,7 +409,7 @@ class StringClassDescription(object):
         """!
         @brief Add language text to the function definition
         @param methodName {string} Translation method name to add the language text to
-        @apram jsonLangData {LanguageDescriptionList} Language list data
+        @param jsonLangData {LanguageDescriptionList} Language list data
         """
         if jsonLangData is not None:
             # Get the list of supported languages and the list of existing translations
@@ -175,18 +423,18 @@ class StringClassDescription(object):
                     # Use the first language
                     sourceLanguage = existingLangages[0]
                     baseTextData = self.stringJasonData['translateMethods'][methodName]['translateDesc'][sourceLanguage]
-                    sourceText = StringClassNameGen.assembleParsedStrData(baseTextData)
+                    sourceText = TranslationTextParser.assembleParsedStrData(baseTextData)
 
                     # Translate and parse for storage
                     translatedText = self._translateText(sourceLanguage, langIsoCode, sourceText)
-                    translatedTextData = StringClassNameGen.parseTranslateString(translatedText)
+                    translatedTextData = TranslationTextParser.parseTranslateString(translatedText)
                     self.stringJasonData['translateMethods'][methodName]['translateDesc'][langIsoCode] = translatedTextData
         else:
             pass
 
 
-    def _defineTranslateFunctionEntry(self, briefDesc = "", paramsList = [], retDesc = "",
-                                      translateBaseLang = "en", translateText = None):
+    def _defineTranslateFunctionEntry(self, briefDesc:str = "", paramsList:list = [], retDict:dict = {},
+                                      translateBaseLang:str = "en", translateText:list = None)->dict:
         """!
         @brief Define a property string return function dictionary and
                return the entry to the caller
@@ -194,7 +442,7 @@ class StringClassDescription(object):
         @param briefDesc {string} Brief description of the function used in
                                   doxygen comment block generation
         @param paramsList {list of dictionaries} List of the function parameter dictionary entrys
-        @param retDesc {string} Description of the return parserstr value
+        @param retDict {dict} Return data dictionary
         @param translateBaseLang {string} ISO 639-1 language code for the input translateText string
         @param translateText {list} Parsed text of the message
 
@@ -204,19 +452,19 @@ class StringClassDescription(object):
         """
         functionDict = {'briefDesc': briefDesc,
                         'params': paramsList,
-                        'return': ParamRetDict.buildReturnDict("text", retDesc, False),
+                        'return': retDict,
                         'translateDesc': self._defineTranslationDict(translateBaseLang, translateText)
                         }
         return functionDict
 
-    def getTranlateMethodList(self):
+    def getTranlateMethodList(self)->list:
         """!
         @brief Return a list of property method name strings
         @return list of strings - Names of the property methods
         """
         return list(self.stringJasonData['translateMethods'].keys())
 
-    def getTranlateMethodFunctionData(self, methodName):
+    def getTranlateMethodFunctionData(self, methodName:str)->tuple:
         """!
         @brief Return the input methodName data
         @return (tuple) - {string} Brief description of the property method for Doxygen comment,
@@ -226,7 +474,7 @@ class StringClassDescription(object):
         entry = self.stringJasonData['translateMethods'][methodName]
         return entry['briefDesc'], entry['params'], entry['return']
 
-    def getTranlateMethodTextData(self, methodName, targetLanguage):
+    def getTranlateMethodTextData(self, methodName:str, targetLanguage:str)->list:
         """!
         @brief Return the input methodName data
         @param methodName (string) Name of the method to retrive data from
@@ -235,7 +483,7 @@ class StringClassDescription(object):
         """
         return self.stringJasonData['translateMethods'][methodName]['translateDesc'][targetLanguage]
 
-    def _inputIsoTranslateCode(self):
+    def _inputIsoTranslateCode(self)->str:
         """!
         @brief Get the ISO 639-1 translate language code from user input and check for validity
         @return string - translate code
@@ -253,10 +501,18 @@ class StringClassDescription(object):
                 print("Error: Only two characters a-z are allowed in the code, try again.")
         return isoTranslateId
 
-    def _inputCName(self):
-        paramName = ""
-        while(paramName == ""):
-            name = input("Enter parameter name: ")
+    def _inputVarMethodName(self, methodName:bool = False)->str:
+        """!
+        @brief Get the parameter or method name
+        @param methodName {boolean} True if this is a method name call, else False (default)
+        @return string - Validated name value
+        """
+        validatedName = ""
+        while(validatedName == ""):
+            if methodName:
+                name = input("Enter method name: ")
+            else:
+                name = input("Enter parameter name: ")
             name.strip()
 
             # Check validity
@@ -265,13 +521,26 @@ class StringClassDescription(object):
                 paramName = name
             else:
                 # invalid name
-                print("Error: Must be a valid C name, try again.")
+                print("Error: "+name+" is not a valid code name, try again.")
         return paramName
 
-    def _inputCType(self):
+    def _inputParamReturnType(self, returnType:bool = False)->tuple:
+        """!
+        @brief Get the parameter or method name
+        @param returnType {boolean} True if this is a return type fetch, else False (default)
+        @return tuple - String Validated name value,
+                        Boolean is list,
+                        Boolean is pointer type,
+                        Boolean is reference type
+        """
         varType = ""
         while(varType == ""):
-            inputType = input("Enter parameter type [T(ext)|i(nteger)|u(nsigned)|s(ize)|c(ustom)] : ").lower()
+            if returnType:
+                promptStr = "Enter return base type"
+            else:
+                promptStr = "Enter parameter base type"
+
+            inputType = input(promptStr+" [T(ext)|i(nteger)|u(nsigned)|s(ize)|c(ustom)]: ").lower()
 
             # Check validity
             if (inputType == "s") or (inputType=="size"):
@@ -284,42 +553,55 @@ class StringClassDescription(object):
                 varType = "unsigned"
             elif (inputType == "c") or (inputType=="custom"):
                 print ("Note: Custom type must have an operator<< defined.")
-                customType = input("Enter custom parameter type: ")
-
-                typeNames = customType.split("::")
-                # Strip reference and pointer decorations
-                typeNames[-1].rstrip('&')
-                typeNames[-1].rstrip('*')
-                for typeName in typeNames:
-                    typeName.strip() # Remove whitespace
-                    if re.match('^[a-zA-Z_][a-zA-Z0-9_]*$', typeName):
-                        # valid
-                        varType = customType
-                    else:
-                        # invalid type
-                        print (customType+" is not a valid c/c++ type name, try again.")
+                customType = input("Enter custom type: ")
+                if re.match('^[a-zA-Z_][a-zA-Z0-9_:\.]*$', customType):
+                    # valid
+                    varType = customType
+                else:
+                    # invalid type
+                    print (customType+" is not a valid code type name, try again.")
             else:
                 # invalid name
                 print("Error: \""+inputType+"\" unknown. Please select one of the options from the menu.")
 
-        return varType
+        isListType = input("Is full type a list [y/n]:").lower()
+        if (isListType == 'y') or (isListType == 'yes'):
+            isList = True
+        else:
+            isList = False
 
-    def _inputParameterData(self):
+        isPtrType = input("Is full type a pointer [y/n]:").lower()
+        if (isPtrType == 'y') or (isPtrType == 'yes'):
+            isPtr = True
+        else:
+            isPtr = False
+
+        isRefType = input("Is full type a reference [y/n]:").lower()
+        if (isRefType == 'y') or (isRefType == 'yes'):
+            isReference = True
+        else:
+            isReference = False
+
+        return varType, isList, isReference, isPtr
+
+    def _inputParameterData(self)->dict:
         """!
         @brief Get input parameter data from user input
         @return dictionary - Param dictionary from  ParamRetDict.buildParamDict()
         """
-        paramName = self._inputCName()
-        paramType = self._inputCType()
+        paramName = self._inputVarMethodName()
+        paramType, isList, isReference, isPtr = self._inputParamReturnType()
         paramDesc = input("Enter brief parameter description for doxygen comment: ")
-        return ParamRetDict.buildParamDict(paramName, paramType, paramDesc)
+        return ParamRetDict.buildParamDict(paramName, paramType, paramDesc, isList, isReference, isPtr)
 
-    def _inputReturnData(self):
+    def _inputReturnData(self)->dict:
         """!
         @brief Get the return data description from the user
+        @return dictionary - Return dictionary from  ParamRetDict.buildReturnDict()
         """
+        returnType, isList, isReference, isPtr = self._inputParamReturnType()
         retDesc = input("Enter brief description of the return value for doxygen comment: ")
-        return retDesc
+        return ParamRetDict.buildReturnDict(returnType, retDesc, isList, isReference, isPtr)
 
     def update(self):
         """!
@@ -328,7 +610,7 @@ class StringClassDescription(object):
         with open(self.filename, 'w', encoding='utf-8') as langJsonFile:
             json.dump(self.stringJasonData, langJsonFile, indent=2)
 
-    def _validateTranslateString(self, paramList, testString):
+    def _validateTranslateString(self, paramList:list, testString:str):
         """!
         @brief Get the translation string template for the new translate function
 
@@ -347,15 +629,15 @@ class StringClassDescription(object):
             expectedParamList.append(paramName)
 
         # Break the string into it's component parts
-        parsedStrData = StringClassNameGen.parseTranslateString(testString)
+        parsedStrData = TranslationTextParser.parseTranslateString(testString)
 
         # Check the broken string counts
         matchCount = 0
         paramCount = 0
         for parsedData in parsedStrData:
-            if StringClassNameGen.isParsedParamType(parsedData):
+            if TranslationTextParser.isParsedParamType(parsedData):
                 paramCount +=1
-                if StringClassNameGen.getParsedStrData(parsedData) in expectedParamList:
+                if TranslationTextParser.getParsedStrData(parsedData) in expectedParamList:
                     matchCount+=1
 
         if (matchCount == len(expectedParamList)) and (paramCount == matchCount):
@@ -365,7 +647,7 @@ class StringClassDescription(object):
             # Return failure
             return False, matchCount, paramCount, parsedStrData
 
-    def _inputTranslateString(self, paramList):
+    def _inputTranslateString(self, paramList:list):
         """!
         @brief Get the translation string template for the new translate function
 
@@ -414,16 +696,19 @@ class StringClassDescription(object):
 
         return parsedString
 
-    def newTranslateMethodEntry(self, languageList:LanguageDescriptionList = None):
+    def newTranslateMethodEntry(self, languageList:LanguageDescriptionList = None, override:bool = False):
         """!
         @brief Define and add a new translate string return function dictionary
                to the list of translate functions
+        @param languageList {LanguageDescriptionList | None} Supported language description data or None
+        @param override {boolean} True = Override existing without asking
+        @return boolean True if new entry was written, else false
         """
         newEntry = {}
         entryCorrect = False
 
         while not entryCorrect:
-            methodName = self._inputCName()
+            methodName = self._inputVarMethodName()
             methodDesc = input("Enter brief function description for doxygen comment: ")
 
             paramList = []
@@ -432,11 +717,11 @@ class StringClassDescription(object):
                 paramList.append(self._inputParameterData())
                 paramCount -= 1
 
-            returnDesc = self._inputReturnData()
+            returnDict = self._inputReturnData()
 
             languageBase = self._inputIsoTranslateCode()
             translateString = self._inputTranslateString(paramList)
-            newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDesc, languageBase, translateString)
+            newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDict, languageBase, translateString)
 
             # Print entry for user to inspect
             print("New Entry:")
@@ -446,25 +731,15 @@ class StringClassDescription(object):
                 entryCorrect = True
 
         # Test existing for match
-        commitFlag = False
-        if methodName in self.stringJasonData['translateMethods'].keys():
-            # Determine if we should overwrite existing
-            commit = input("Overwrite existing "+methodName+" entry? [Y/N]").upper()
-            if ((commit == 'Y') or (commit == "YES")):
-                commitFlag = True
-                self.stringJasonData['translateMethods'][methodName] = newEntry
-                self._translateMethodText(methodName, languageList)
-        else:
-            commit = input("Add new entry? [Y/N]").upper()
-            if ((commit == 'Y') or (commit == "YES")):
-                commitFlag = True
-                self.stringJasonData['translateMethods'][methodName] = newEntry
-                self._translateMethodText(methodName, languageList)
+        commitFlag = self._getCommitFlag(methodName, self.stringJasonData['translateMethods'].keys(), override)
+        if commitFlag:
+            self.stringJasonData['translateMethods'][methodName] = newEntry
+            self._translateMethodText(methodName, languageList)
 
         return commitFlag
 
     def addTranslateMethodEntry(self, methodName:str, methodDesc:str, paramList:list,
-                                returnDescription:str, isoLangCode:str, translateString:str,
+                                returnDict:dict, isoLangCode:str, translateString:str,
                                 override:bool = False, languageList:LanguageDescriptionList = None):
         """!
         @brief Add a new translate string return function dictionary
@@ -472,7 +747,7 @@ class StringClassDescription(object):
         @param methodName {string} Name of the function
         @param methodDesc {string} Brief description of the function for doxygen comment generation
         @param paramList {list of dictionaries} List of the input parameter description dictionaries
-        @param returnDescription {string} Brief description of the return value for doxygen comment generation
+        @param returnDict {dict} Return dictionary definition
         @param isoLangCode {string} ISO 639-1 language code of the input translateString
         @param translateString {string} String to generate translations for
         @param override {boolean} True = Override existing without asking
@@ -483,21 +758,18 @@ class StringClassDescription(object):
             print ("Error: Invalid translation string: "+translateString+". paramCount= "+str(paramCount)+" matchCount= "+str(matchCount))
             return False
 
-        newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDescription, isoLangCode, parsedStrData)
+        newEntry = self._defineTranslateFunctionEntry(methodDesc, paramList, returnDict, isoLangCode, parsedStrData)
 
+        commitFlag = True
         if methodName in self.stringJasonData['translateMethods'].keys():
             # Determine if we should overwrite existing
-            if override:
-                self.stringJasonData['translateMethods'][methodName] = newEntry
-                self._translateMethodText(methodName, languageList)
-            else:
-                commit = input("Overwrite existing "+methodName+" entry? [Y/N]").upper()
-                if ((commit == 'Y') or (commit == "YES")):
-                    self.stringJasonData['translateMethods'][methodName] = newEntry
-                    self._translateMethodText(methodName, languageList)
-        else:
+            commitFlag = self._getCommitOverWriteFlag(methodName, override)
+
+        if commitFlag:
             self.stringJasonData['translateMethods'][methodName] = newEntry
             self._translateMethodText(methodName, languageList)
+
+        return commitFlag
 
     def _getPropertyReturnData(self):
         """!
@@ -534,10 +806,12 @@ class StringClassDescription(object):
         methodName = LanguageDescriptionList.getLanguagePropertyMethodName(propertyId)
         return propertyId, methodName, returnType, returnDesc, isList
 
-    def newPropertyMethodEntry(self):
+    def newPropertyMethodEntry(self, override:bool = False):
         """!
         @brief Define and add a property string return function dictionary and
                add it to the list of translate functions
+        @param override {boolean} True = Override existing without asking
+        @return boolean True if new entry was written, else false
         """
         newEntry = {}
         entryCorrect = False
@@ -556,23 +830,13 @@ class StringClassDescription(object):
                 entryCorrect = True
 
         # Check for existing for match
-        commitFlag = False
-        if methodName in self.stringJasonData['propertyMethods'].keys():
-            # Determine if we should overwrite existing
-            commit = input("Overwrite existing "+methodName+" entry? [Y/N]").upper()
-            if ((commit == 'Y') or (commit == "YES")):
-                self.stringJasonData['propertyMethods'][methodName] = newEntry
-                commitFlag = True
-        else:
-            # Determine if we should add the new entry
-            commit = input("Add new entry? [Y/N]").upper()
-            if ((commit == 'Y') or (commit == "YES")):
-                self.stringJasonData['propertyMethods'][methodName] = newEntry
-                commitFlag = True
+        commitFlag = self._getCommitFlag(methodName, self.stringJasonData['propertyMethods'].keys(), override)
+        if commitFlag:
+            self.stringJasonData['propertyMethods'][methodName] = newEntry
 
         return commitFlag
 
-    def addPropertyMethodEntry(self, propertyName, override = False):
+    def addPropertyMethodEntry(self, propertyName:str, override:bool = False):
         """!
         @brief Add a new translate string return function dictionary
                to the list of translate functions
@@ -590,193 +854,32 @@ class StringClassDescription(object):
 
             newEntry = self._definePropertyFunctionEntry(propertyName, methodDesc, returnType, returnDesc)
 
-            if methodName in self.stringJasonData['propertyMethods'].keys():
-                # Verify the overwrite
-                if override:
-                    self.stringJasonData['propertyMethods'][methodName] = newEntry
-                else:
-                    commit = input("Overwrite existing "+methodName+" entry? [Y/N]").upper()
-                    if ((commit == 'Y') or (commit == "YES")):
-                        self.stringJasonData['propertyMethods'][methodName] = newEntry
-            else:
+            commitFlag = self._getCommitFlag(methodName, self.stringJasonData['propertyMethods'].keys(), override)
+            if commitFlag:
                 # Add the entry
                 self.stringJasonData['propertyMethods'][methodName] = newEntry
 
 
-def CreateDefaultStringFile(classStrings:StringClassDescription, languageList:LanguageDescriptionList, forceUpdate:bool = False):
+#################################
+# Command line interface
+#################################
+def SetBaseClassName(classStrings:StringClassDescription, classname:str):
     """!
-    @brief Add a function to the self.langJsonData data
-    @param classStrings {StringClassDescription} - Object to create/update
-    @param languageList {LanguageDescriptionList} - List of languages to translate
-    @param forceUpdate {boolean} True force the update without user intervention,
-                                 False request update confermation on all methods
+    @brief Set the base class name value
+    @param classStrings {StringClassDescription} Object to update
+    @param classname {string} Name of the base class
     """
-    classStrings.addPropertyMethodEntry("isoCode", override = forceUpdate)
+    classStrings.setBaseClassName(classname)
 
-    # General argument parsing messages
-    classStrings.addTranslateMethodEntry("getNotListTypeMessage", "Return non-list varg error message",
-                                         [ParamRetDict.buildParamDict("nargs", "integer", "input nargs value")],
-                                         "Non-list varg error message",
-                                         "en",
-                                         "Only list type arguments can have an argument count of @nargs@",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getUnknownArgumentMessage", "Return unknown parser key error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Unknown key")],
-                                         "Unknown parser key error message",
-                                         "en",
-                                         "Unknown argument: @keyString@",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getInvalidAssignmentMessage", "Return varg invalid assignment error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
-                                         "Varg key invalid assignment error message",
-                                         "en",
-                                         "\"@keyString@\" invalid assignment",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getAssignmentFailedMessage", "Return varg assignment failed error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key"),
-                                          ParamRetDict.buildParamDict("valueString", "string", "Assignment value")],
-                                         "Varg key assignment failed error message",
-                                         "en",
-                                         "\"@keyString@\", \"@valueString@\" assignment failed",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getMissingAssignmentMessage", "Return varg missing assignment error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
-                                         "Varg key missing value assignment error message",
-                                         "en",
-                                         "\"@keyString@\" missing assignment value",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getMissingListAssignmentMessage", "Return varg missing list value assignment error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key"),
-                                          ParamRetDict.buildParamDict("nargsExpected", "size", "Expected assignment list length"),
-                                          ParamRetDict.buildParamDict("nargsFound", "size", "Input assignment list length")],
-                                         "Varg key input value list too short error message",
-                                         "en",
-                                         "\"@keyString@\" missing assignment value(s). Expected: @nargsExpected@ found: @nargsFound@ arguments",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getTooManyAssignmentMessage", "Return varg missing list value assignment error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key"),
-                                          ParamRetDict.buildParamDict("nargsExpected", "size", "Expected assignment list length"),
-                                          ParamRetDict.buildParamDict("nargsFound", "size", "Input assignment list length")],
-                                         "Varg key input value list too long error message",
-                                         "en",
-                                         "\"@keyString@\" too many assignment values. Expected: @nargsExpected@ found: @nargsFound@ arguments",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getMissingArgumentMessage", "Return required varg missing error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
-                                         "Required varg key missing error message",
-                                         "en",
-                                         "\"@keyString@\" required argument missing",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getArgumentCreationError", "Return parser add varg failure error message",
-                                         [ParamRetDict.buildParamDict("keyString", "string", "Error key")],
-                                         "Parser varg add failure message",
-                                         "en",
-                                         "Argument add failed: @keyString@",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    # Command Line parser messages
-    classStrings.addTranslateMethodEntry("getUsageMessage", "Return usage help message",
-                                         [],
-                                         "Usage help message",
-                                         "en",
-                                         "Usage:",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getPositionalArgumentsMessage", "Return positional argument help message",
-                                         [],
-                                         "Positional argument help message",
-                                         "en",
-                                         "Positional Arguments:",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-
-    classStrings.addTranslateMethodEntry("getSwitchArgumentsMessage", "Return optional argument help message",
-                                         [],
-                                         "Optional argument help message",
-                                         "en",
-                                         "Optional Arguments:",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getHelpString", "Return default help switch help message",
-                                         [],
-                                         "Default help argument help message",
-                                         "en",
-                                         "show this help message and exit",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    # Environment parser messages
-    classStrings.addTranslateMethodEntry("getEnvArgumentsMessage", "Return environment parser argument help header",
-                                         [],
-                                         "Environment parser argument help header message",
-                                         "en",
-                                         "Defined Environment values:",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getEnvironmentNoFlags", "Return environment parser add flag varg failure error message",
-                                         [ParamRetDict.buildParamDict("envKeyString", "string", "Flag key")],
-                                         "Environment parser add flag varg failure message",
-                                         "en",
-                                         "Environment value @envKeyString@ narg must be > 0",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.addTranslateMethodEntry("getRequiredEnvironmentArgMissing", "Return environment parser required varg missing error message",
-                                         [ParamRetDict.buildParamDict("envKeyString", "string", "Flag key")],
-                                         "Environment parser required varg missing error message",
-                                         "en",
-                                         "Environment value @envKeyString@ must be defined",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-
-    # JSON file parser messages
-    classStrings.addTranslateMethodEntry("getJsonArgumentsMessage", "Return json parser argument help header",
-                                         [],
-                                         "JSON parser argument help header message",
-                                         "en",
-                                         "Available JSON argument values:",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    # XML file parser messages
-    classStrings.addTranslateMethodEntry("getXmlArgumentsMessage", "Return xml parser argument help header",
-                                         [],
-                                         "XML parser argument help header message",
-                                         "en",
-                                         "Available XML argument values:",
-                                         override = forceUpdate,
-                                         languageList = languageList)
-
-    classStrings.update()
-
-def AddTranslateMethodEntry(classStrings:StringClassDescription, languageList:LanguageDescriptionList):
+def AddTranslateMethodEntry(classStrings:StringClassDescription, languageList:LanguageDescriptionList, forceUpdate:bool = False):
     """!
     @brief Add a translate string function to the self.langJsonData data
     @param classStrings (StringClassDescription) - Object to add translate method to
+    @param languageList {LanguageDescriptionList} List of languages to translate
+    @param forceUpdate {boolean} True force the update without user intervention,
+                                 False request update confermation on all methods
     """
-    commit = classStrings.newTranslateMethodEntry(languageList)
+    commit = classStrings.newTranslateMethodEntry(languageList, forceUpdate)
     if commit:
         print ("Updating JSON file")
         classStrings.update()
@@ -804,30 +907,68 @@ def CommandMain():
     """
     import argparse
     import pathlib
+    progStart = "jsonStringClassDescription -s <filename>"
+    subcmdList = ["addproperty", "addtranslate", "setclassname", "print", "create"]
+    mainparserProg = progStart+" "
 
-    parser = argparse.ArgumentParser(prog="jsonStringClassDescription",
+    subcmdDesc = ""
+    subcmdNamePrefix = "<"
+    for subcmdName in subcmdList:
+        subcmdDesc += subcmdNamePrefix
+        subcmdDesc += subcmdName
+        subcmdNamePrefix = "|"
+    subcmdDesc += ">"
+
+    # Create the command parser
+    parser = argparse.ArgumentParser(prog=mainparserProg+" "+subcmdDesc+" [subcommand options]",
                                      description="Update argpaser library language description JSON file")
-    parser.add_argument('-p','--path', dest='jsonpath', required=False, type=pathlib.Path,
-                        default='../data', help='Existing destination directory')
-    parser.add_argument('subcommand', choices=['addproperty', 'addtranslate', 'print', 'createnew'])
-    parser.add_argument('-f', dest='force', action='store_true', default=False)
+    parser.add_argument('-s','--stringclass', dest='jsonStrClassFile', required=True, type=pathlib.Path,
+                        help='Path/file name of the string description JSON file to modify or create.')
+
+    # Create the subcommand parsers
+    subparsers = parser.add_subparsers(title='subcommands', dest='subcommand', description=subcmdDesc, required=True)
+
+    scAddProperty = subparsers.add_parser('addproperty', description='Add language list property return function',
+                                          prog='jsonStringClassDescription addproperty')
+    scAddTranslate = subparsers.add_parser('addtranslate', description='Add string translated string return function')
+
+    for subcmdParser in [scAddProperty, scAddTranslate]:
+        subcmdParser.add_argument('-l','--langlist', dest='jsonLangFile', required=True, default=None, type=pathlib.Path,
+                                  help='Path/file name of the language description JSON file. Used for translation method translations.')
+        subcmdParser.add_argument('-f', dest='force', action='store_true', default=False)
+
+    scCreate = subparsers.add_parser('create', description='Create a new data file')
+    scCreate.add_argument('classname', type=str)
+
+    scSetClassName = subparsers.add_parser('setclassname', description='Set/Reset the base class name used by a class generator')
+    scSetClassName.add_argument('classname', type=str)
+
+    scPrint = subparsers.add_parser('print', description='Print existing data')
+
+    # Parse the input
     args = parser.parse_args()
 
-    classStrings = StringClassDescription(FileNameGenerator.getStringClassDescriptionFileName(args.jsonpath))
-    languageData = LanguageDescriptionList(FileNameGenerator.getLanguageDescriptionFileName(args.jsonpath))
+    classStrings = StringClassDescription(args.jsonStrClassFile)
+    if args.jsonLangFile is not None:
+        languageData = LanguageDescriptionList(args.jsonLangFile)
+    else:
+        languageData = None
 
+    # Process subcommand
     if args.subcommand.lower() == "addproperty":
-        AddPropertyMethodEntry(classStrings)
-    if args.subcommand.lower() == "addtranslate":
-        AddTranslateMethodEntry(classStrings, languageData)
+        AddPropertyMethodEntry(classStrings, args.force)
+    elif args.subcommand.lower() == "addtranslate":
+        AddTranslateMethodEntry(classStrings, languageData, args.force)
     elif args.subcommand.lower() == "print":
         PrintMethods(classStrings)
-    elif args.subcommand.lower() == "createnew":
-        CreateDefaultStringFile(classStrings, languageData, args.force)
+    elif args.subcommand.lower() == "create":
+        classStrings.setBaseClassName(args.classname)
+        classStrings.update()
+    elif args.subcommand.lower() == "setclassname":
+        classStrings.setBaseClassName(args.classname)
     else:
         print ("Error: Unknown JSON string method definition file command: "+args.subcommand)
         SystemExit(1)
-
 
 if __name__ == '__main__':
     CommandMain()
