@@ -32,19 +32,19 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
     """!
     Methods for master language select function generation
     """
-    def __init__(self, functionName = "getLocalParserStringListInterface", objectName = "ParserStringListInterface"):
+    def __init__(self, eulaName:str|None = None, baseClassName:str = "BaseClass",
+                 methodName:str = "getLocalParserStringListInterface",
+                 dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
         @brief MasterSelectFunctionGenerator constructor
-        @param functionName {string} Function name to be used for generation
-        @param objectName {string} Namespace decoration
-        @param dynamicCompileSwitch {string} Dynamic international compile switch name
+        @param eulaName {string|None} Name of the EULA to pass down to the BaseCppClassGenerator parent
+        @param baseClassName {string} Name of the base class for name generation
+        @param methodName {string} Function name to be used for generation
+        @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
         """
-        super().__init__()
-        if objectName is not None:
-            self.selectFunctionName = objectName+"::"+functionName
-        else:
-            self.selectFunctionName = functionName
-        self.selectBaseFunctionName = functionName
+        super().__init__(eulaName, baseClassName, dynamicCompileSwitch)
+        self.selectFunctionName = baseClassName+"::"+methodName
+        self.selectBaseFunctionName = methodName
 
         self.briefDesc = "Determine the OS use OS specific functions to determine the correct local language" \
                          "based on the OS specific local language setting and return the correct class object"

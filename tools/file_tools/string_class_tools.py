@@ -27,7 +27,6 @@ for the argparse libraries
 
 from .json_data.param_return_tools import ParamRetDict
 from .common.cpp_file_gen_base import GenerateCppFileHelper
-from .string_name_generator import StringClassNameGen
 
 class BaseCppClassGenerator(GenerateCppFileHelper):
     """!
@@ -36,14 +35,18 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
     This class extends GenCFunctionHelper and implents some common data and functionality
     for specific OS language function implementations
     """
-    def __init__(self, eulaName = None, baseClassName = "ParserStringListInterface"):
+    def __init__(self, eulaName:str|None = None, baseClassName:str = "BaseClass",
+                 dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
         @brief BaseCppClassGenerator constructor
-        @param baseClassName {string} - Name of the base class for share_ptr generation
+        @param eulaName {string|None} Name of the EULA to pass down to the GenerateCppFileHelper parent
+        @param baseClassName {string} Name of the base class for share_ptr generation
+        @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
         """
         super().__init__(eulaName)
 
         self.baseClassName = baseClassName
+        self.dynamicCompileSwitch = dynamicCompileSwitch
         self.stdPtrType = "std::shared_ptr"
         self.returnType = self.stdPtrType+"<"+self.baseClassName+">"
         self.retPtrDict = ParamRetDict.buildReturnDict(self.returnType,
@@ -162,14 +165,20 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
         return xlatedParamList
 
 class BaseStringClassGenerator(BaseCppClassGenerator):
-    def __init__(self, owner = None, eulaName = None):
+    def __init__(self, owner:str|None = None, eulaName:str|None = None, baseClassName:str = "BaseClass"):
         """!
         @brief GenerateOSLanguageDetectFiles constructor
         @param owner {string} Owner string for the copyright/EULA file header comment
         @param eulaName {string} EULA name for the copyright/EULA file header comment
         """
-        super().__init__(eulaName, StringClassNameGen.getBaseClassName())
-        self.owner = owner
+        super().__init__(eulaName, baseClassName)
+        if owner is None:
+            self.owner = "Unknown"
+        else:
+            self.owner = owner
+
+        self.baseClassName = baseClassName
+
         self.versionMajor = 1
         self.versionMinor = 0
         self.versionPatch = 0
@@ -179,7 +188,7 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
         self.groupName = "LocalLanguageSelection"
         self.groupDesc = "Local language detection and selection utility"
 
-        self.ifDynamicDefined = "defined("+StringClassNameGen.getDynamicCompileswitch()+")"
+        self.ifDynamicDefined = "defined("+self.dynamicCompileSwitch+")"
         self.declareIndent = 8
         self.functionIndent = 4
 
@@ -194,39 +203,39 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
 
     def _generateHFileName(self, langName = None):
         if langName is not None:
-            return StringClassNameGen.getLangClassName(langName)+".h"
+            return self.baseClassName+langName.capitalize()+".h"
         else:
-            return StringClassNameGen.getBaseClassName()+".h"
+            return self.baseClassName+".h"
 
     def _generateCppFileName(self, langName = None):
         if langName is not None:
-            return StringClassNameGen.getLangClassName(langName)+".cpp"
+            return self.baseClassName+langName.capitalize()+".cpp"
         else:
-            return StringClassNameGen.getBaseClassName()+".cpp"
+            return self.baseClassName+".cpp"
 
     def _generateUnittestFileName(self, langName = None):
         if langName is not None:
-            return StringClassNameGen.getLangClassName(langName)+"_test.cpp"
+            return self.baseClassName+langName.capitalize()+"_test.cpp"
         else:
-            return StringClassNameGen.getBaseClassName()+"_test.cpp"
+            return self.baseClassName+"_test.cpp"
 
     def _generateUnittestTargetName(self, langName = None):
         if langName is not None:
-            return StringClassNameGen.getLangClassName(langName)+"_test"
+            return self.baseClassName+langName.capitalize()+"_test"
         else:
-            return StringClassNameGen.getBaseClassName()+"_test"
+            return self.baseClassName+"_test"
 
     def _generateMockHFileName(self, langName = None):
         if langName is not None:
-            return "mock_"+StringClassNameGen.getLangClassName(langName)+".h"
+            return "mock_"+self.baseClassName+langName.capitalize()+".h"
         else:
-            return "mock_"+StringClassNameGen.getBaseClassName()+".h"
+            return "mock_"+self.baseClassName+".h"
 
     def _generateMockCppFileName(self, langName = None):
         if langName is not None:
-            return "mock_"+StringClassNameGen.getLangClassName(langName)+".cpp"
+            return "mock_"+self.baseClassName+langName.capitalize()+".cpp"
         else:
-            return "mock_"+StringClassNameGen.getBaseClassName()+".cpp"
+            return "mock_"+self.baseClassName+".cpp"
 
     def _writeMethod(self, methodName, methodDesc,
                      methodParams, returnDict, prefix, postfix,

@@ -391,70 +391,6 @@ class LanguageDescriptionList(JsonHelper):
 #################################
 # Command line interface
 #################################
-def AddEnglish(languages:LanguageDescriptionList):
-    """!
-    @brief Add the english language definition
-           Example for AddLanguage call
-
-    @param languages (LanguageDescriptionList) - Object to add to
-    """
-    linuxEnv = "en"
-    linuxRegionList = ["AU","BZ","CA","CB","GB","IE","JM","NZ","PH","TT","US","ZA","ZW"]
-    winLanID = [0x09]
-    winLanIDList = [3081,10249,4105,9225,2057,16393,6153,8201,5129,13321,7177,11273,1033,12297]
-    languages.addLanguage("english", "en", linuxEnv, linuxRegionList, winLanID, winLanIDList, "en", "ENGLISH_ERRORS")
-
-def AddSpanish(languages:LanguageDescriptionList):
-    """!
-    @brief Add the spanish language definition
-           Example for AddLanguage call
-
-    @param languages (LanguageDescriptionList) - Object to add to
-    """
-    linuxEnv = "es"
-    linuxRegionList = ["AR","BO","CL","CO","CR","DO","EC","ES","GT","HN",
-                       "MX","NI","PA","PE","PR","PY","SV","UY","VE"]
-    winLanID = [0x0A]
-    winLanIDList = [11274,16394,13322,9226,5130,7178,12298,17418,4106,18442,2058,19466,6154,15370,10250,20490,1034,14346,8202]
-    languages.addLanguage("spanish", "es", linuxEnv, linuxRegionList, winLanID, winLanIDList, "es", "SPANISH_ERRORS")
-
-def AddFrench(languages:LanguageDescriptionList):
-    """!
-    @brief Add the french language definition
-           Example for AddLanguage call
-
-    @param languages (LanguageDescriptionList) - Object to add to
-    """
-    linuxEnv = "fr"
-    linuxRegionList = ["BE","CA","CH","FR","LU","MC"]
-    winLanID = [0x0C]
-    winLanIDList = [2060,11276,3084,9228,12300,1036,5132,13324,6156,14348,10252,4108,7180]
-    languages.addLanguage("french", "fr", linuxEnv, linuxRegionList, winLanID, winLanIDList, "fr", "FRENCH_ERRORS")
-
-def AddSimplifiedChinese(languages:LanguageDescriptionList):
-    """!
-    @brief Add the simplified chinese language definition
-           Example for AddLanguage call
-
-    @param languages (LanguageDescriptionList) - Object to add to
-    """
-    linuxEnv = "zh"
-    linuxRegionList = ["CN","HK","MO","SG","TW"]
-    winLanID = [0x04]
-    winLanIDList = [2052,3076,5124,4100,1028]
-    languages.addLanguage("SimplifiedChinese", "zh", linuxEnv, linuxRegionList, winLanID, winLanIDList, "zh", "CHINESE_ERRORS")
-
-def CreateDefaultJson(languages:LanguageDescriptionList):
-    """!
-    @brief Create base default LanguageDescriptionList json file
-    @param languages (LanguageDescriptionList) - Object to create
-    """
-    AddEnglish(languages)
-    AddSpanish(languages)
-    AddFrench(languages)
-    AddSimplifiedChinese(languages)
-    languages.setDefault("english")
-    languages.update()
 
 def PrintLanguages(languages:LanguageDescriptionList):
     """!
@@ -491,7 +427,7 @@ def CommandMain():
                                      description="Update argpaser library language description JSON file")
     parser.add_argument('-l','--langlist', dest='jsonPathFile', required=True, type=pathlib.Path,
                         default='../data', help='Path/filename of existing or new JSON language description file')
-    parser.add_argument('subcommand', choices=['add', 'print', 'createnew', 'setdefaultlang', 'createdefault'],
+    parser.add_argument('subcommand', choices=['add', 'print', 'createnew', 'setdefaultlang'],
                         help='Use one of the valid defined subcommands [add|print|createnew|setdefaultlang]')
 
     args = parser.parse_args()
@@ -506,8 +442,6 @@ def CommandMain():
     elif args.subcommand.lower() == "setdefaultlang":
         defaultLang = jsonLangFile._inputLanguageName()
         jsonLangFile.setDefault(defaultLang)
-    elif args.subcommand.lower() == "createdefault":
-        CreateDefaultJson(jsonLangFile)
     else:
         print ("Error: Unknown JSON language description file command: "+args.subcommand)
         SystemExit(1)

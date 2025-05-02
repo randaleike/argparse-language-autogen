@@ -50,7 +50,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         @param owner {string|None} Owner name to use in the copyright header message or None to use tool name
         @param eulaName {string|None} EULA text to use in the header message or None to default MIT Open
         """
-        super().__init__(owner, eulaName)
+        super().__init__(owner, eulaName, classStrings.getBaseClassName())
         self.versionMajor = 1
         self.versionMinor = 0
         self.versionPatch = 0
@@ -59,15 +59,19 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.jsonLangData = languageList
         self.jsonStringsData = classStrings
 
-        self.osLangSelectList = [LinuxLangSelectFunctionGenerator(self.jsonLangData),
-                                 WindowsLangSelectFunctionGenerator(self.jsonLangData)
+        self.osLangSelectList = [LinuxLangSelectFunctionGenerator(self.jsonLangData, eulaName,
+                                                                  classStrings.getBaseClassName(),
+                                                                  classStrings.getDynamicCompileSwitch()),
+                                 WindowsLangSelectFunctionGenerator(self.jsonLangData, eulaName,
+                                                                    classStrings.getBaseClassName(),
+                                                                    classStrings.getDynamicCompileSwitch())
                                  # Add additional OS lang select classes here
                                  ]
 
         self.masterFunctionName = "getLocalParserStringListInterface"
-        self.nameSpaceName = StringClassNameGen.getNamespaceName()
-        self.masterFunction = MasterSelectFunctionGenerator(self.masterFunctionName,
-                                                            StringClassNameGen.getBaseClassName())
+        self.nameSpaceName = classStrings.getNamespaceName()
+        self.masterFunction = MasterSelectFunctionGenerator(eulaName, classStrings.getBaseClassName(),
+                                                            self.masterFunctionName, classStrings.getDynamicCompileSwitch())
 
         self.hFileName = self._generateHFileName()
         self.mockHFileName = self._generateMockHFileName()
@@ -78,7 +82,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         self.includeSubDir = []
         self.staticUnittestFile = ""
 
-        self.mockClassName = "mock_"+StringClassNameGen.getBaseClassName()
+        self.mockClassName = "mock_"+self.jsonStringsData.getBaseClassName()
 
     def getCmakeHFileName(self):
         return self.hFileName
@@ -186,7 +190,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         hFile.writelines(self.genIncludeBlock(includeList))
 
         hFile.writelines(["\n"]) # whitespace for readability
-        hFile.writelines(self.doxyCommentGen.genDoxyDefgroup(StringClassNameGen.getBaseClassName()+".h", self.groupName, self.groupDesc))
+        hFile.writelines(self.doxyCommentGen.genDoxyDefgroup(self.jsonStringsData.getBaseClassName()+".h", self.groupName, self.groupDesc))
         hFile.writelines(["#pragma once\n"])
 
         hFile.writelines(["\n",
@@ -197,7 +201,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         hFile.writelines(["\n"]) # whitespace for readability
 
         # Start class definition
-        className = StringClassNameGen.getBaseClassName()
+        className = self.jsonStringsData.getBaseClassName()
         hFile.writelines(self.genClassOpen(className,
                                            "Parser error/help string generation interface"))
         hFile.writelines(["    public:\n"])
@@ -343,7 +347,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         mockFile.writelines(["\n"]) # whitespace for readability
 
         # Start class definition
-        baseClassName = StringClassNameGen.getBaseClassName()
+        baseClassName = self.jsonStringsData.getBaseClassName()
         mockFile.writelines(self.genClassOpen(self.mockClassName,
                                               "Mock Parser error/help string generation interface",
                                               "public "+baseClassName))
@@ -406,7 +410,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         # Add the OS local language fetch override
         selectMethodName, selectBriefDesc, selectRetDict, selectParamList = self.masterFunction.getFunctionDesc()
 
-        functionDef = self.defineFunctionWithDecorations(self.baseClassName+"::"+selectMethodName,
+        functionDef = self.defineFunctionWithDecorations(self.masterFunction.getFunctionName(),
                                                          selectBriefDesc,
                                                          selectParamList,
                                                          selectRetDict,
@@ -418,7 +422,7 @@ class GenerateBaseLangFiles(BaseStringClassGenerator):
         makeMockPtr += "> >();"
 
         makeStr = "std::shared_ptr<"
-        makeStr += StringClassNameGen.getBaseClassName()
+        makeStr += self.jsonStringsData.getBaseClassName()
         makeStr += "> retPtr = "
         makeStr += makeMockPtr
 

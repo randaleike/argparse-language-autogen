@@ -35,33 +35,6 @@ class StringClassNameGen(object):
         pass
 
     @staticmethod
-    def getNamespaceName():
-        """!
-        @brief Return the project namespace name
-        @return string Project namespace name
-        """
-        return StringClassNameGen.projectNameSpace
-
-    @staticmethod
-    def getBaseClassName():
-        """!
-        @brief Return the base class name
-        @return string Base sting class name
-        """
-        return "ParserStringListInterface"
-
-    @staticmethod
-    def getLangClassName(languageName:str|None)->str:
-        """!
-        @brief Return the base class name
-        @return string Base sting class name
-        """
-        if languageName is None:
-            return StringClassNameGen.getBaseClassName()
-        else:
-            return StringClassNameGen.getBaseClassName()+languageName.capitalize()
-
-    @staticmethod
     def getParserStringType():
         return "parserstr"
 
@@ -72,11 +45,3 @@ class StringClassNameGen(object):
     @staticmethod
     def getParserStrStreamType():
         return "parser_str_stream"
-
-    @staticmethod
-    def getDynamicCompileswitch():
-        """!
-        @brief Return the base class name
-        @return string Base sting class name
-        """
-        return "DYNAMIC_INTERNATIONALIZATION"

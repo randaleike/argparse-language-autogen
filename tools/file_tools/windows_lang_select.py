@@ -33,16 +33,19 @@ class WindowsLangSelectFunctionGenerator(BaseCppClassGenerator):
     """!
     Methods for Windows language select function generation
     """
-    def __init__(self, jsonLangData, functionName = "getParserStringListInterface_Windows"):
+    def __init__(self, jsonLangData, eulaName:str|None = None, baseClassName:str = "BaseClass",
+                 dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
         @brief WindowsLangSelectFunctionGenerator constructor
         @param jsonLangData {string} JSON language description list file name
-        @param functionName {string} Function name to be used for generation
-        @param dynamicCompileSwitch {string} Dynamic international compile switch name
+        @param eulaName {string|None} Name of the EULA to pass down to the BaseCppClassGenerator parent
+        @param baseClassName {string} Name of the base class for name generation
+        @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
         """
-        super().__init__()
+        super().__init__(eulaName, baseClassName, dynamicCompileSwitch)
+        self.selectFunctionName = "get"+baseClassName+"_Windows"
+
         self.paramDictList = [ParamRetDict.buildParamDict("langId", "LANGID", "Return value from GetUserDefaultUILanguage() call")]
-        self.selectFunctionName = functionName
         self.defOsString = "(defined(_WIN64) || defined(_WIN32))"
         self.langJsonData = jsonLangData
         self.doxyCommentGen = CDoxyCommentGenerator()

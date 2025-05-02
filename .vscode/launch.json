@@ -5,19 +5,34 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: autogenlang.py",
+            "name": "PyDeb: autogenlang.py build",
             "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}/tools",
             "program": "autogenlang.py",
             "console": "integratedTerminal",
-            "args": ["build",
+            "args": ["-j",
+                     "../data",
+                     "build",
                      "-o",
                      "../output",
                      "--owner",
                      "\"Randal Eike\"",
                      "--eula",
                      "MIT_open"
+                    ]
+        },
+        {
+            "name": "PyDeb: autogenlang.py defaultstring",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "autogenlang.py",
+            "console": "integratedTerminal",
+            "args": ["-j",
+                     "../data",
+                     "classjson",
+                     "createdefault"
                     ]
         },
         {

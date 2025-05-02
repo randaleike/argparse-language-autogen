@@ -46,7 +46,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @param owner {string|None} Owner name to use in the copyright header message or None to use tool name
         @param eulaName {string|None} EULA text to use in the header message or None to default MIT Open
         """
-        super().__init__(owner, eulaName)
+        super().__init__(owner, eulaName, classStrings.getBaseClassName())
         self.versionMajor = 1
         self.versionMinor = 0
         self.versionPatch = 0
@@ -54,7 +54,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         self.jsonLangData = languageList
         self.jsonStringsData = classStrings
-        self.nameSpaceName = StringClassNameGen.getNamespaceName()
+        self.nameSpaceName = classStrings.getNamespaceName()
 
         self.langFileNames = {}
         self.includeSubDir = []
@@ -317,19 +317,19 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         includeList = ["<cstdio>",
                        "<cstring>",
-                       StringClassNameGen.getBaseClassName()+".h",]
+                       self.jsonStringsData.getBaseClassName()+".h",]
         hFile.writelines(self.genIncludeBlock(includeList))
         hFile.writelines(["\n"]) # whitespace for readability
         hFile.writelines(["#pragma once\n"])
 
         # Set the class name
-        className = StringClassNameGen.getLangClassName(langName)
+        className = self.jsonStringsData.getLanguageClassName(langName)
         hFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
 
         # Start class definition
         hFile.writelines(self.genClassOpen(className,
                                             "Language specific parser error/help string generation interface",
-                                            "public "+StringClassNameGen.getBaseClassName(),
+                                            "public "+self.jsonStringsData.getBaseClassName(),
                                             "final"))
         hFile.writelines(["    public:\n"])
 
@@ -363,7 +363,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
                            self._generateHFileName(langName)]
         cppFile.writelines(self.genIncludeBlock(includeFileList))
 
-        className = StringClassNameGen.getLangClassName(langName)
+        className = self.jsonStringsData.getLanguageClassName(langName)
         cppFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
         cppFile.writelines(["using "+StringClassNameGen.getParserStrStreamType()+" = std::stringstream;\n", "\n"])
 
@@ -392,14 +392,14 @@ class GenerateLangFiles(BaseStringClassGenerator):
         """
         codeText = []
         propertyName, propertyDesc, propertyParams, propertyReturn = self.jsonStringsData.getPropertyMethodData(propertyMethod)
-        unitTestSectionName = StringClassNameGen.getLangClassName(langName)
+        unitTestSectionName = self.jsonStringsData.getLanguageClassName(langName)
         bodyIndent = "".rjust(4, ' ')
 
         # Translate the return type
         xlatedRetDict, isRetText = self.xlateReturnDict(propertyReturn)
         codeText.append("TEST("+unitTestSectionName+", fetch"+propertyMethod+")\n")
         codeText.append("{\n")
-        codeText.append(bodyIndent+StringClassNameGen.getLangClassName(langName)+" testvar;\n")
+        codeText.append(bodyIndent+self.jsonStringsData.getLanguageClassName(langName)+" testvar;\n")
 
         # Build the property function call
         fetchCode = ParamRetDict.getReturnType(xlatedRetDict)
@@ -464,14 +464,14 @@ class GenerateLangFiles(BaseStringClassGenerator):
         """
         codeText = []
         transDesc, transParams, transReturn = self.jsonStringsData.getTranlateMethodFunctionData(translateMethodName)
-        unitTestSectionName = StringClassNameGen.getLangClassName(langName)
+        unitTestSectionName = self.jsonStringsData.getLanguageClassName(langName)
         bodyIndent = "".rjust(4, ' ')
 
         # Translate the return type
         xlatedRetDict, isRetText = self.xlateReturnDict(transReturn)
         codeText.append("TEST("+unitTestSectionName+", print"+translateMethodName+")\n")
         codeText.append("{\n")
-        codeText.append(bodyIndent+StringClassNameGen.getLangClassName(langName)+" testvar;\n")
+        codeText.append(bodyIndent+self.jsonStringsData.getLanguageClassName(langName)+" testvar;\n")
 
         # Build the property function call
         fetchCode = ParamRetDict.getReturnType(xlatedRetDict)
@@ -527,7 +527,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         testFile.writelines(["\n"]) # whitespace for readability
 
         # Set the class name
-        className = StringClassNameGen.getLangClassName(langName)
+        className = self.jsonStringsData.getLanguageClassName(langName)
         testFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
         testFile.writelines(["using "+StringClassNameGen.getParserStrStreamType()+" = std::stringstream;\n", "\n"])
         testFile.writelines(["// NOLINTBEGIN\n"])

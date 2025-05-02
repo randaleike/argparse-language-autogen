@@ -44,7 +44,7 @@ class FileNameGenerator(object):
         @brief Get the default language description file name
         @return string Default file name of the language description JSON file
         """
-        return StringClassNameGen.getNamespaceName()+"-lang-list.json"
+        return "argparse-lang-list.json"
 
     @staticmethod
     def getLanguageDescriptionFileName(directory = None)->str:
@@ -65,7 +65,7 @@ class FileNameGenerator(object):
         @brief Get the default string class description file name
         @return string Default file name of the string class description JSON file
         """
-        return StringClassNameGen.getNamespaceName()+"-strclass-def.json"
+        return "argparse-strclass-def.json"
 
     @staticmethod
     def getStringClassDescriptionFileName(directory = None)->str:

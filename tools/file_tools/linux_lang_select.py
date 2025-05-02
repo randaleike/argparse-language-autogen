@@ -34,16 +34,19 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
     """!
     Methods for Linux language select function generation
     """
-    def __init__(self, jsonLangData, functionName = "getParserStringListInterface_Linux"):
+    def __init__(self, jsonLangData, eulaName:str|None = None, baseClassName:str = "BaseClass",
+                 dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
         @brief LinuxLangSelectFunctionGenerator constructor
         @param jsonLangData {string} JSON language description list file name
-        @param functionName {string} Function name to be used for generation
-        @param dynamicCompileSwitch {string} Dynamic international compile switch name
+        @param eulaName {string|None} Name of the EULA to pass down to the BaseCppClassGenerator parent
+        @param baseClassName {string} Name of the base class for name generation
+        @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
         """
-        super().__init__()
+        super().__init__(eulaName, baseClassName, dynamicCompileSwitch)
+        self.selectFunctionName = "get"+baseClassName+"_Linux"
+
         self.paramDictList = [ParamRetDict.buildParamDict("langId", "const char*", "Current LANG value from the program environment")]
-        self.selectFunctionName = functionName
         self.defOsString = "(defined(__linux__) || defined(__unix__))"
         self.langJsonData = jsonLangData
         self.doxyCommentGen = CDoxyCommentGenerator()

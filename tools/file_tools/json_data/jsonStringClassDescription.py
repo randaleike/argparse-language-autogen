@@ -251,7 +251,11 @@ class StringClassDescription(JsonHelper):
         try:
             langJsonFile = open(self.filename, 'r', encoding='utf-8')
         except FileNotFoundError:
-            self.stringJasonData = {'baseClassName': "baseclass", 'propertyMethods':{}, 'translateMethods':{}}
+            self.stringJasonData = {'baseClassName': "baseclass",
+                                    'namespace': "myNamespace",
+                                    'dynamicCompileSwitch': "DYNAMIC_INTERNATIONALIZATION",
+                                    'propertyMethods':{},
+                                    'translateMethods':{}}
         else:
             self.stringJasonData = json.load(langJsonFile)
             langJsonFile.close()
@@ -301,6 +305,18 @@ class StringClassDescription(JsonHelper):
         @return string Base sting class name
         """
         return namespaceName+scopeOperator+self.getLanguageClassName(languageName)
+
+    def setNamespaceName(self, namespace:str):
+        self.stringJasonData['namespace'] = namespace
+
+    def getNamespaceName(self):
+        return self.stringJasonData['namespace']
+
+    def setDynamicCompileSwitch(self, switch:str):
+        self.stringJasonData['dynamicCompileSwitch'] = switch
+
+    def getDynamicCompileSwitch(self):
+        return self.stringJasonData['dynamicCompileSwitch']
 
     def _definePropertyFunctionEntry(self, propertyName:str = "", briefDesc:str = "",
                                      retType:str = "", retDesc:str = "", isList:bool = False)->dict:
@@ -554,7 +570,7 @@ class StringClassDescription(JsonHelper):
             elif (inputType == "c") or (inputType=="custom"):
                 print ("Note: Custom type must have an operator<< defined.")
                 customType = input("Enter custom type: ")
-                if re.match('^[a-zA-Z_][a-zA-Z0-9_:\.]*$', customType):
+                if re.match('^[a-zA-Z_][a-zA-Z0-9_:]*$', customType):
                     # valid
                     varType = customType
                 else:
@@ -858,6 +874,15 @@ class StringClassDescription(JsonHelper):
             if commitFlag:
                 # Add the entry
                 self.stringJasonData['propertyMethods'][methodName] = newEntry
+
+    def updateTranlations(self, jsonLangData:LanguageDescriptionList = None):
+        """!
+        @brief Update the translation strings in the translation methods
+        @param jsonLangData {LanguageDescriptionList} Updated language list defintions
+        """
+        methodList = self.getPropertyMethodList()
+        for methodName in methodList:
+            self._translateMethodText(methodName, jsonLangData)
 
 
 #################################

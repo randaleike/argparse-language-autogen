@@ -25,7 +25,8 @@ for the argparse libraries
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-from file_tools.string_class_tools import StringClassNameGen
+from file_tools.json_data.jsonStringClassDescription import StringClassDescription
+
 from base_string_class import GenerateBaseLangFiles
 from lang_string_class import GenerateLangFiles
 
@@ -34,7 +35,7 @@ class CmakeGenerator(object):
     @brief Build cmake list file
     """
     def __init__(self, baseFileGen:GenerateBaseLangFiles, langFileGen:GenerateLangFiles,
-                 incfileSubdir:list, mockIncdir:str, baseDir:str):
+                 incfileSubdir:list, mockIncdir:str, baseDir:str, jsonStringFile:StringClassDescription):
         """!
         @brief CmakeGenerator constructor
         @param baseFileGen {GenerateBaseLangFiles} Object used to generate the base interface files
@@ -42,6 +43,7 @@ class CmakeGenerator(object):
         @param incfileSubdir {list of strings} Include directory paths relative to the file base directory
         @param mockIncdir {string} Mock file output directory
         @param baseDir {string} Base directory name
+        @param jsonStringFile {StringClassDescription} Class description file
         """
         self.baseFileGen = baseFileGen
         self.langFileGen = langFileGen
@@ -52,7 +54,8 @@ class CmakeGenerator(object):
         self.incfileSubdir = incfileSubdir
         self.mockIncfileSubdir = [mockIncdir]
         self.baseDirName = baseDir
-        self.dynamicSelectionSwitch = "-D"+StringClassNameGen.getDynamicCompileswitch()
+        self.dynamicSelectionSwitch = "-D"+jsonStringFile.getDynamicCompileSwitch()
+        self.jsonStringFile = jsonStringFile
 
     def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True):
         """!
@@ -173,7 +176,7 @@ class CmakeGenerator(object):
         @brief Generate the CMakeLists.txt file
         @param cmakeFile {file} Open file for output
         """
-        projectName = StringClassNameGen.getBaseClassName()
+        projectName = self.jsonStringFile.getBaseClassName()
 
         incFileList = [self.baseFileGen.getCmakeHFileName()]
         baseCppFile = self.baseFileGen.getCmakeLibFileName()
@@ -260,7 +263,7 @@ class CmakeGenerator(object):
         sourceList = ["${"+projectBaseSrc+"}", self.baseFileGen.getCmakeBaseUnittestFileName()]
         cmakeCode = self._generateUnittestBuild(projectBaseUnittest,
                                                 sourceList,
-                                                StringClassNameGen.getBaseClassName()+"_test",
+                                                self.jsonStringFile.getBaseClassName()+"_test",
                                                 projectBaseInclude)
         cmakeFile.writelines(cmakeCode)
         cmakeFile.writelines(["\n"])
