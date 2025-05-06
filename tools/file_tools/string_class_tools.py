@@ -28,66 +28,64 @@ for the argparse libraries
 from .json_data.param_return_tools import ParamRetDict
 from .common.cpp_file_gen_base import GenerateCppFileHelper
 
-class BaseCppClassGenerator(GenerateCppFileHelper):
-    """!
-    @brief Helper methods for OS lang file function generation
-
-    This class extends GenCFunctionHelper and implents some common data and functionality
-    for specific OS language function implementations
-    """
-    def __init__(self, eulaName:str|None = None, baseClassName:str = "BaseClass",
-                 dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
+class BaseStringClassGenerator(GenerateCppFileHelper):
+    def __init__(self, owner:str|None = None, eulaName:str|None = None,
+                 baseClassName:str = "BaseClass", dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
-        @brief BaseCppClassGenerator constructor
-        @param eulaName {string|None} Name of the EULA to pass down to the GenerateCppFileHelper parent
-        @param baseClassName {string} Name of the base class for share_ptr generation
-        @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
+        @brief GenerateOSLanguageDetectFiles constructor
+        @param owner {string} Owner string for the copyright/EULA file header comment
+        @param eulaName {string} EULA name for the copyright/EULA file header comment
         """
         super().__init__(eulaName)
+        if owner is None:
+            self.owner = "Unknown"
+        else:
+            self.owner = owner
 
         self.baseClassName = baseClassName
         self.dynamicCompileSwitch = dynamicCompileSwitch
-        self.stdPtrType = "std::shared_ptr"
-        self.returnType = self.stdPtrType+"<"+self.baseClassName+">"
-        self.retPtrDict = ParamRetDict.buildReturnDict(self.returnType,
-                                                       "Shared pointer to "+self.baseClassName+"<lang> based on OS local language")
-        self.xlateMatrix = {'string':   {'type':"parserstr", 'isText':True },
-                            'text':     {'type':"parserstr", 'isText':True },
-                            'size':     {'type':"size_t",    'isText':False},
-                            'integer':  {'type':"int",       'isText':False},
-                            'unsigned': {'type':"unsigned",  'isText':False},
-                            'LANID':    {'type':"LANGID",    'isText':False}}
 
-    def _genFunctionDeclare(self, name, briefDesc, paramDictList, indent = 0):
-        """!
-        @brief Get the function declaration string for the given name
+        # modify the type translation matrix
+        self.typeXlationDict['string'] = "parserstr"
+        self.typeXlationDict['text'] = "parserstr"
 
-        @param name {string} Function name
-        @param briefDesc {string} Brief description for DOXYGEN commant
-        @param paramDictList {list} Parameter description dicionary list
+        # Add the specialty types
+        self.baseIntfRetPtrType = "std::shared_ptr<"+self.baseClassName+">"
+        self.typeXlationDict['LANID'] = "LANGID"
+        self.typeXlationDict['sharedptr'] = self.baseIntfRetPtrType
+        self.typeXlationDict['char'] = "parserchar"
+        self.typeXlationDict['strstream'] = "parser_str_stream"
 
-        @return string list - Function comment block and declaration start
-        """
-        return self.declareFunctionWithDecorations(name, briefDesc, paramDictList, self.retPtrDict, indent)
+        self.baseIntfRetPtrDict = ParamRetDict.buildReturnDict('sharedptr',
+                                                                "Shared pointer to "+self.baseClassName+"<lang> based on OS local language")
 
-    def _genFunctionDefine(self, name, briefDesc, paramDictList):
-        """!
-        @brief Get the function definition string for the given name
+        self.versionMajor = 1
+        self.versionMinor = 0
+        self.versionPatch = 0
+        self.versionTweak = 0
+        self.autoToolName = self.__class__.__name__+self._getVersion()
 
-        @param name {string} Function name
-        @param briefDesc {string} Brief description for DOXYGEN commant
-        @param paramDictList {list} Parameter description dicionary list
+        self.groupName = "LocalLanguageSelection"
+        self.groupDesc = "Local language detection and selection utility"
 
-        @return string list - Function comment block and declaration start
-        """
-        functionDef = self.defineFunctionWithDecorations(name, briefDesc, paramDictList, self.retPtrDict)
-        functionDef.append("{\n")
-        return functionDef
+        self.ifDynamicDefined = "defined("+self.dynamicCompileSwitch+")"
+        self.declareIndent = 8
+        self.functionIndent = 4
 
-    def genMakePtrReturnStatement(self, classMod = None):
+    def _getParserStringType(self)->str:
+        return "parserstr"
+
+    def _getParserCharType(self)->str:
+        return "parserchar"
+
+    def _getParserStrStreamType(self)->str:
+        return "parser_str_stream"
+
+    def _genMakePtrReturnStatement(self, classMod:str|None = None)->str:
         """!
         @brief Generate a language select return statement
         @param classMod {string} Language name of the final parser string object
+        @return string cpp code
         """
         if classMod is not None:
             ptrName = self.baseClassName+classMod.capitalize()
@@ -99,147 +97,54 @@ class BaseCppClassGenerator(GenerateCppFileHelper):
         retLine += ">();\n"
         return retLine
 
-    def genPtrParameterStatement(self, paramName):
-        """!
-        @brief Generate a language select variable declaration
-        @param paramName {string} Variable name
-        """
-        paramLine = self.returnType
-        paramLine += " "
-        paramLine += paramName
-        paramLine += ";\n"
-        return paramLine
-
-    def getParserStringType(self):
-        return "parserstr"
-
-    def xlateGenericType(self, genericType:str, typeMod:int=0):
-        """!
-        @brief Translate the generic type specification to the CPP equivilent
-        @param genericType {string} Generic type name
-        @param typeMod {int} Type modification flags.
-        @return tuble (string, boolean) CPP type spcification
-                                        True if value is text, else false
-        """
-        if genericType in self.xlateMatrix.keys():
-            return self.declareType(self.xlateMatrix[genericType]['type'], typeMod), self.xlateMatrix[genericType]['isText']
-        else:
-            # Unknown return the same type name
-            return self.declareType(genericType, typeMod), False
-
-    def xlateReturnDict(self, genericReturnDict):
-        """!
-        @brief Translate the input generic return dictionary object into
-               the argparse C code type
-        @param genericReturnDict {dictionary} Return data dictionary from the JSON file
-        @return tuble (dictionary, boolean) - C translated return dictionary
-                                              True if value is text, else false
-        """
-        retType, retDesc, typeMod = ParamRetDict.getReturnData(genericReturnDict)
-        xlatedRetType, isText = self.xlateGenericType(retType, typeMod)
-        return ParamRetDict.buildReturnDictWithMod(xlatedRetType, retDesc, typeMod), isText
-
-    def xlateParamDict(self, genericParamDict):
-        """!
-        @brief Translate the input generic param dictionary object into
-               the argparse C code type
-        @param genericParamDict {dictionary} Param data dictionary from the JSON file
-        @return tuble (dictionary, boolean) - C translated param dictionary
-                                              True if value is text, else false
-        """
-        paramName, paramType, paramDesc, typeMod = ParamRetDict.getParamData(genericParamDict)
-        xlatedRetType, isText = self.xlateGenericType(paramType, typeMod)
-        return ParamRetDict.buildParamDictWithMod(paramName, xlatedRetType, paramDesc, typeMod), isText
-
-    def xlateParamList(self, genericParamList):
-        """!
-        @brief Translate the input generic param dictionary list object into
-               the argparse C code type
-        @param genericParamList {list of dictionaries} Param data dictionary list from the JSON file
-        @return list - C translated param dictionary list
-        """
-        xlatedParamList = []
-        for paramDict in genericParamList:
-            xlatedDict, isText = self.xlateParamDict(paramDict)
-            xlatedParamList.append(xlatedDict)
-        return xlatedParamList
-
-class BaseStringClassGenerator(BaseCppClassGenerator):
-    def __init__(self, owner:str|None = None, eulaName:str|None = None, baseClassName:str = "BaseClass"):
-        """!
-        @brief GenerateOSLanguageDetectFiles constructor
-        @param owner {string} Owner string for the copyright/EULA file header comment
-        @param eulaName {string} EULA name for the copyright/EULA file header comment
-        """
-        super().__init__(eulaName, baseClassName)
-        if owner is None:
-            self.owner = "Unknown"
-        else:
-            self.owner = owner
-
-        self.baseClassName = baseClassName
-
-        self.versionMajor = 1
-        self.versionMinor = 0
-        self.versionPatch = 0
-        self.versionTweak = 0
-        self.autoToolName = self.__class__.__name__+self.getVersion()
-
-        self.groupName = "LocalLanguageSelection"
-        self.groupDesc = "Local language detection and selection utility"
-
-        self.ifDynamicDefined = "defined("+self.dynamicCompileSwitch+")"
-        self.declareIndent = 8
-        self.functionIndent = 4
-
-    def getVersion(self):
+    def _getVersion(self)->str:
         return "V"+str(self.versionMajor)+"."+str(self.versionMinor)+"."+str(self.versionPatch)+"."+str(self.versionTweak)
 
-    def _generateFileHeader(self):
+    def _generateFileHeader(self)->list:
         """!
         @brief Generate the boiler plate file header with copyright and eula
         """
         return super()._generateGenericFileHeader(self.autoToolName, 2025, self.owner)
 
-    def _generateHFileName(self, langName = None):
+    def _generateHFileName(self, langName:str|None = None)->str:
         if langName is not None:
             return self.baseClassName+langName.capitalize()+".h"
         else:
             return self.baseClassName+".h"
 
-    def _generateCppFileName(self, langName = None):
+    def _generateCppFileName(self, langName:str|None = None)->str:
         if langName is not None:
             return self.baseClassName+langName.capitalize()+".cpp"
         else:
             return self.baseClassName+".cpp"
 
-    def _generateUnittestFileName(self, langName = None):
+    def _generateUnittestFileName(self, langName:str|None = None)->str:
         if langName is not None:
             return self.baseClassName+langName.capitalize()+"_test.cpp"
         else:
             return self.baseClassName+"_test.cpp"
 
-    def _generateUnittestTargetName(self, langName = None):
+    def _generateUnittestTargetName(self, langName:str|None = None)->str:
         if langName is not None:
             return self.baseClassName+langName.capitalize()+"_test"
         else:
             return self.baseClassName+"_test"
 
-    def _generateMockHFileName(self, langName = None):
+    def _generateMockHFileName(self, langName:str|None = None)->str:
         if langName is not None:
             return "mock_"+self.baseClassName+langName.capitalize()+".h"
         else:
             return "mock_"+self.baseClassName+".h"
 
-    def _generateMockCppFileName(self, langName = None):
+    def _generateMockCppFileName(self, langName:str|None = None)->str:
         if langName is not None:
             return "mock_"+self.baseClassName+langName.capitalize()+".cpp"
         else:
             return "mock_"+self.baseClassName+".cpp"
 
-    def _writeMethod(self, methodName, methodDesc,
-                     methodParams, returnDict, prefix, postfix,
-                     skipDoxygenComment = True, inlineCode = None):
+    def _writeMethod(self, methodName:str, methodDesc:str,
+                     methodParams:list, returnDict:dict, prefix:str|None, postfix:str|None,
+                     skipDoxygenComment:bool = True, inlineCode:list|None = None)->list:
         """!
         @brief Write the property method definitions
 
@@ -254,11 +159,6 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
 
         @return list of strings
         """
-        # Translate the return type
-        xlatedRetDict, isText = self.xlateReturnDict(returnDict)
-
-        # Translate the param data
-        xlatedParams = []
         if len(methodParams) == 0:
             if postfix is not None:
                 postfixFinal = "const " + postfix
@@ -266,22 +166,21 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
                 postfixFinal = "const"
         else:
             postfixFinal = postfix
-            xlatedParams = self.xlateParamList(methodParams)
 
         # Output final declaration
-        declText = self.declareFunctionWithDecorations(methodName,
-                                                       methodDesc,
-                                                       xlatedParams,
-                                                       xlatedRetDict,
-                                                       self.declareIndent,
-                                                       skipDoxygenComment,
-                                                       prefix,
-                                                       postfixFinal,
-                                                       inlineCode)
+        declText = self._declareFunctionWithDecorations(methodName,
+                                                        methodDesc,
+                                                        methodParams,
+                                                        returnDict,
+                                                        self.declareIndent,
+                                                        skipDoxygenComment,
+                                                        prefix,
+                                                        postfixFinal,
+                                                        inlineCode)
 
         return declText
 
-    def _writeMockMethod(self, methodName, methodParams, returnDict, postfix):
+    def _writeMockMethod(self, methodName:str, methodParams:list, returnDict:dict, postfix:str|None)->list:
         """!
         @brief Write the property method definitions
 
@@ -292,11 +191,7 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
 
         @return list of strings - Mock method declaration
         """
-        # Translate the return type
-        xlatedRetDict, isText = self.xlateReturnDict(returnDict)
-
         # Translate the param data
-        xlatedParams = []
         if len(methodParams) == 0:
             if postfix is not None:
                 postfixFinal = "const, " + postfix
@@ -304,18 +199,17 @@ class BaseStringClassGenerator(BaseCppClassGenerator):
                 postfixFinal = "const"
         else:
             postfixFinal = postfix
-            xlatedParams = self.xlateParamList(methodParams)
 
         # Output mock declaration
         declText = "".rjust(self.declareIndent, ' ')
         declText += "MOCK_METHOD("
-        declText += ParamRetDict.getReturnType(xlatedRetDict)
+        declText += self._declareType(ParamRetDict.getReturnType(returnDict), ParamRetDict.getParamTypeMod(returnDict))
         declText += ", "
         declText += methodName
         declText += ", "
 
         # Add the parameters
-        declText += self.genFunctionParams(xlatedParams)
+        declText += self._genFunctionParams(methodParams)
 
         # Add the post fix data
         if postfixFinal is not None:

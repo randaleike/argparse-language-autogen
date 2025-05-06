@@ -65,17 +65,62 @@ class GeneratePythonFileHelper(object):
         self.levelTabSize = 4
         self.headerCommentGen = CommentGenerator(CommentParams.pyCommentParms, 80, useSingleLine=True)
 
-    def declareType(self, varDict:dict)->str:
+        self.typeXlationDict = {'string':"str",
+                                'text':"str",
+                                'size':"int",
+                                'integer':"int",
+                                'unsigned':"int",
+                                'structure':"dict",
+                                'tuple':"tuple"}
+
+    def _declareType(self, baseType:str, typeMod:int=0)->str:
         """!
-        @brief Generate the type text based on the variable input ParamRetDict dictionary
-        @param varDict (dict) Variable ParamRetDict description dictionary
+        @brief Generate the type text based on the input type name and type modification data
+        @param baseType (str) Delclaration type
+        @param typeMod (int) ParamRetDict type modification code
         @return string - : Type(s)
         """
-        if ParamRetDict.isOrUndef(varDict):
-            returnText += ParamRetDict.getReturnType(varDict)+"|None"
+        arraySize = ParamRetDict.getArraySize(typeMod)
+        if ParamRetDict.isModList(typeMod) or (arraySize > 0):
+            returnText = "list"
         else:
-            returnText += ParamRetDict.getReturnType(varDict)
+            langType = baseType
+            if baseType in list(self.typeXlationDict.keys()):
+                langType = self.typeXlationDict[baseType]
+
+            if ParamRetDict.isOrUndefType(typeMod):
+                returnText = langType+"|None"
+            else:
+                returnText = langType
         return returnText
+
+    def _xlateParams(self, paramDictList:list)->list:
+        """!
+        @brief Translate the generic parameter list type strings to the python specific parameter type strings
+        @param paramDictList {list} List of ParamRetDict parameter dictionaries to translate
+        @return list - List of ParamRetDict parameter dictionaries with the translated type
+        """
+        xlatedParams = []
+        for param in paramDictList:
+            xlatedType = self._declareType(ParamRetDict.getParamType(param), ParamRetDict.getParamTypeMod(param))
+            xlatedParam = ParamRetDict.buildParamDictWithMod(ParamRetDict.getParamName(param),
+                                                             xlatedType,
+                                                             ParamRetDict.getParamDesc(param),
+                                                             0)
+            xlatedParams.append(xlatedParam)
+        return xlatedParams
+
+    def _xlateReturnDict(self, retDict:dict|None)->dict|None:
+        """!
+        @brief Translate the generic return dictionary to the python specific return dictionary
+        @param retDict {dictionary} ParamRetDict return dictionary to translate
+        @return dictionary|None - ParamRetDict return dictionary with the translated type or None if input is None
+        """
+        if retDict is not None:
+            xlatedType = self._declareType(ParamRetDict.getReturnType(retDict), ParamRetDict.getReturnTypeMod(retDict))
+            return ParamRetDict.buildReturnDictWithMod(xlatedType, ParamRetDict.getReturnDesc(retDict), 0)
+        else:
+            return None
 
     def _genFunctionRetType(self, returnDict:dict|None)->str:
         """!
@@ -85,13 +130,15 @@ class GeneratePythonFileHelper(object):
         """
         returnText = ""
         if returnDict is not None:
+            typeName = ParamRetDict.getReturnType(returnDict)
+            typeMod = ParamRetDict.getReturnTypeMod(returnDict)
             returnText += "->"
-            returnText += self.declareType(returnDict)
+            returnText += self._declareType(typeName, typeMod)
 
         returnText += ":"
         return returnText
 
-    def genFunctionParams(self, paramDictList:list)->str:
+    def _genFunctionParams(self, paramDictList:list)->str:
         """!
         @brief Generate the parameter method string
         @param paramDictList (list) List of parameter dictionaries
@@ -100,16 +147,18 @@ class GeneratePythonFileHelper(object):
         paramPrefix = ""
         paramText = "("
         for paramDict in paramDictList:
+            typeName = ParamRetDict.getParamType(paramDict)
+            typeMod = ParamRetDict.getParamTypeMod(paramDict)
+
             paramText += paramPrefix
             paramText += ParamRetDict.getParamName(paramDict)
             paramText += ":"
-            paramText += self.declareType(paramDict)
+            paramText += self._declareType(typeName, typeMod)
             paramPrefix = ", "
         paramText += ")"
         return paramText
 
-
-    def declareFunctionWithDecorations(self, name:str, briefdesc:str, paramDictList:list, retDict:dict|None = None,
+    def _declareFunctionWithDecorations(self, name:str, briefdesc:str, paramDictList:list, retDict:dict|None = None,
                                        indent:int = 4, noDoxygen:bool = False, prefixDecaration:str|None = None,
                                        postfixDecaration:str|None = None, inlinecode:list|None = None,
                                        longDesc:str|None = None)->list:
@@ -130,50 +179,41 @@ class GeneratePythonFileHelper(object):
         @return string list - Function doxygen comment block and declaration
         """
         funcDeclareText = []
+        declIndent = "".rjust(indent, ' ')
+
+        # Add fungenDoxyMethodCommentction prefix definitions if defined
+        if prefixDecaration is not None:
+            funcDeclareText.append(declIndent+prefixDecaration+"\n")
 
         # Create function declaration line
-        funcLine = "".rjust(indent, ' ')
+        funcLine = declIndent
         funcLine += "def "
-
-        # Add function prefix definitions if defined
-        if prefixDecaration is not None:
-            funcLine += prefixDecaration
-            funcLine += " "
-
-        # Construct main function declaration
         funcLine += name
 
         # Add the function parameters
-        funcLine += self.genFunctionParams(paramDictList)
+        funcLine += self._genFunctionParams(paramDictList)
         funcLine += self._genFunctionRetType(retDict)
+        funcLine += "\n"
+        funcDeclareText.append(funcLine)
 
         # Add doxygen comment block
         if not noDoxygen:
-            funcDeclareText.extend(self.doxyCommentGen.genDoxyMethodComment(briefdesc, paramDictList, retDict,
+            xlatedParamList = self._xlateParams(paramDictList)
+            xlatedRet = self._xlateReturnDict(retDict)
+            funcDeclareText.extend(self.doxyCommentGen.genDoxyMethodComment(briefdesc, xlatedParamList, xlatedRet,
                                                                             longDesc, indent+self.levelTabSize))
 
         # Add inline code if defined
+        inlineIndent = "".rjust(indent+self.levelTabSize, ' ')
         if inlinecode is None:
-            funcLine += self.doxyCommentGen.genSingleLineStart()+" @todo Implement code\n"
-            funcDeclareText.append(funcLine)
+            funcDeclareText.append(inlineIndent+self.doxyCommentGen.genSingleLineStart()+" @todo Implement code\n")
         else:
-            funcLine += "\n"
-            funcDeclareText.append(funcLine)
-            inlineIndent = "".rjust(indent, ' ')
-            inlineStart = inlineIndent+"{"
-            if len(inlinecode) == 1:
-                funcDeclareText.append(inlineStart+inlinecode[0]+"}\n")
-            else:
-                funcDeclareText.append(inlineStart+"\n")
-                inlineBodyIndent = "".rjust(indent+self.levelTabSize, ' ')
-                for codeLine in inlinecode:
-                    codeLine += "\n"
-                    funcDeclareText.append(inlineBodyIndent+codeLine)
-                funcDeclareText.append(inlineIndent+"}\n")
+            for codeLine in inlinecode:
+                funcDeclareText.append(inlineIndent+codeLine+"\n")
 
         return funcDeclareText
 
-    def defineFunctionWithDecorations(self, name:str, briefdesc:str, paramDictList:list, retDict:dict,
+    def _defineFunctionWithDecorations(self, name:str, briefdesc:str, paramDictList:list, retDict:dict,
                                       noDoxygen:bool = False, prefixDecaration:str|None = None,
                                       postfixDecaration:str|None = None, longDesc:list|None = None)->list:
         """!
@@ -192,28 +232,29 @@ class GeneratePythonFileHelper(object):
         """
         funcDefineText = []
 
-        # Create function declaration line
-        funcLine = "def "
-
         # Add function prefix definitions if defined
         if prefixDecaration is not None:
-            funcLine += prefixDecaration
-            funcLine += " "
+            funcDefineText.append(prefixDecaration+"\n")
 
-        # Construct main function declaration
+        # Create function declaration line
+        funcLine = "def "
         funcLine += name
 
         # Add the function parameters
-        funcLine += self.genFunctionParams(paramDictList)
+        funcLine += self._genFunctionParams(paramDictList)
         funcLine += self._genFunctionRetType(retDict)
+        funcLine += "\n"
+        funcDefineText.append(funcLine)
 
         # Add doxygen comment block
         if not noDoxygen:
-            funcDefineText.extend(self.doxyCommentGen.genDoxyMethodComment(briefdesc, paramDictList, retDict,
+            xlatedParamList = self._xlateParams(paramDictList)
+            xlatedRet = self._xlateReturnDict(retDict)
+            funcDefineText.extend(self.doxyCommentGen.genDoxyMethodComment(briefdesc, xlatedParamList, xlatedRet,
                                                                            longDesc, self.levelTabSize))
         return funcDefineText
 
-    def endFunction(self, name:str)->str:
+    def _endFunction(self, name:str)->str:
         """!
         @brief Get the function declaration string for the given name
         @param name (string) - Function name
@@ -270,7 +311,7 @@ class GeneratePythonFileHelper(object):
         else:
             return "import "+className+"\n"
 
-    def genImportBlock(self, includeNames:list)->list:
+    def _genImportBlock(self, includeNames:list)->list:
         """!
         @brief Generate a series if include line(s) for each name in the list
         @param includeNames {list of tuples} Name(s) of class(es), Module name(s) of the class to import
@@ -281,7 +322,7 @@ class GeneratePythonFileHelper(object):
             includeBlock.append(self._genImport(className, moduleName))
         return includeBlock
 
-    def genNamespaceOpen(self, namespaceName:str)->list:
+    def _genNamespaceOpen(self, namespaceName:str)->list:
         """!
         @brief Generate namespace start code for include file
         @param namespaceName {string} Name of the namespace
@@ -289,7 +330,7 @@ class GeneratePythonFileHelper(object):
         """
         return []
 
-    def genNamespaceClose(self, namespaceName:str)->list:
+    def _genNamespaceClose(self, namespaceName:str)->list:
         """!
         @brief Generate namespace start code for include file
         @param namespaceName {string} Name of the namespace
@@ -305,41 +346,44 @@ class GeneratePythonFileHelper(object):
         """
         return []
 
-    def genClassOpen(self, className:str, classDesc:str, inheritence:str|None = None,
-                     classDecoration:str|None = None, noDoxyCommentConstructor:bool = False)->list:
+    def _genClassOpen(self, className:str, classDesc:str|None=None, inheritence:str|None = None,
+                      classDecoration:str|None = None, indent:int=0)->list:
         """!
         @brief Generate the class open code
 
         @param className {string} Name of the class
         @param inheritence {sting} Parent class and visability or None
-        @param classDecoration {sting} Class decoration or None
-        @param noDoxyCommentConstructor {boolean} Doxygen comment disable. False = generate doxygen comments,
-                                                  True = ommit comments
+        @param classDecoration {sting} Class decoration or None, ignored in python
+        @param indent {integer} Space indentation for the declaration and comments
+
         @return list of strings - Code to output
         """
         codeText = []
+        declIndent = "".rjust(indent, ' ')
 
         # Generate class start
         if inheritence is None:
             inheritence = "object"
-        codeText.append("class "+className+"("+inheritence+"):\n")
+        codeText.append(declIndent+"class "+className+"("+inheritence+"):\n")
 
         # Generate Doxygen class description
-        if not noDoxyCommentConstructor:
+        if classDesc is not None:
             codeText.extend(self.doxyCommentGen.genDoxyClassComment(classDesc, None, self.levelTabSize))
 
         return codeText
 
-    def genClassClose(self, className:str)->list:
+    def _genClassClose(self, className:str, indent:int=0)->list:
         """!
         @brief Generate the class close code
 
         @param className {string} Name of the class
+        @param indent {integer} Space indentation for the declaration and comments
+
         @return list of strings - Code to output
         """
-        return ["# end of "+className+" class\n"]
+        return ["".rjust(indent, ' ')+"# end of "+className+" class\n"]
 
-    def genClassDefaultConstructor(self, className:str, indent:int = 4, paramList:list=[],
+    def _genClassDefaultConstructor(self, className:str, indent:int = 4, paramList:list=[],
                                    constructorCode:list= [], noDoxyCommentConstructor:bool = False)->list:
         """!
         @brief Generate default constructor(s)/destructor declarations for a class
@@ -353,19 +397,43 @@ class GeneratePythonFileHelper(object):
         @return list of strings - Code to output
         """
         # Declare default default constructor
-        codeText = self.declareFunctionWithDecorations("__init__",
+        codeText = self._declareFunctionWithDecorations("__init__",
                                                        "Construct a new "+className+" object",
                                                        paramList,
                                                        None,
                                                        indent,
                                                        noDoxyCommentConstructor,
-                                                       "public",
+                                                       None,
                                                        None,
                                                        constructorCode)
         codeText.append("\n")      #whitespace for readability
         return codeText
 
-    def declareVarStatment(self, varDict:dict, doxyCommentIndent:int = -1)->str:
+    def _declareStructure(self, name:str, varDistList:list, indent:int=0,
+                          structDesc:str|None = None)->list:
+        """!
+        @brief Generate a structure declaration
+
+        @param name {string} Name of the structure
+        @param varDistList {list} List of ParamRetDict parameter dictionaries for the data elements
+        @param indent {integer} Number of spaces to indent the code declarations, default = 0
+        @param structDesc {string|None} Doxygen structure description
+
+        @return list of strings - Code to output
+        """
+        # Generate the declaration
+        codeText = self._genClassOpen(name, structDesc, "object", indent=indent)
+        bodyIndent = "".rjust(indent+self.levelTabSize, ' ')
+
+        # Generate the body code
+        for varDict in varDistList:
+            codeText.append(bodyIndent+self._declareVarStatment(varDict, 60))
+
+        # Close the struture
+        codeText.extend(self._genClassClose(name, indent))
+        return codeText
+
+    def _declareVarStatment(self, varDict:dict, doxyCommentIndent:int = -1)->str:
         """!
         @brief Declare a class/interface variable
         @param varDict {dict} ParamRetDict parameter dictionary describing the variable
@@ -373,7 +441,10 @@ class GeneratePythonFileHelper(object):
         @return string Variable declatation code
         """
         # Declare the variable
-        varTypeDecl = self.declareType(varDict)
+        typeName = ParamRetDict.getParamType(varDict)
+        typeMod = ParamRetDict.getParamTypeMod(varDict)
+
+        varTypeDecl = self._declareType(typeName, typeMod)
         varDecl = ParamRetDict.getParamName()+":"+varTypeDecl
 
         # Test for doxycomment skip
@@ -387,14 +458,17 @@ class GeneratePythonFileHelper(object):
         # Return the final data
         return varDecl
 
-    def getAddStringListStatment(self, listName:str, valueName:str)->str:
-        return listName+".append(\""+valueName+"\")"
+    def _genAddListStatment(self, listName:str, valueName:str, isText:bool=False)->str:
+        if isText:
+            return listName+".append(\""+valueName+"\")"
+        else:
+            return listName+".append("+valueName+")"
 
-    def getStringReturnStatment(self, string:str)->str:
-        return "return \""+string+"\""
+    def _genReturnStatment(self, retValue:str, isText:bool=False)->str:
+        if isText:
+            return "return \""+retValue+"\""
+        else:
+            return "return "+retValue
 
-    def getAddValueListStatment(self, listName:str, valueName:str)->str:
-        return listName+".append("+valueName+")"
-
-    def getValueReturnStatment(self, valueName:str)->str:
-        return "return "+valueName
+    def _isReturnList(self, returnDict:dict):
+        return ParamRetDict.isModList(ParamRetDict.getReturnTypeMod(returnDict))

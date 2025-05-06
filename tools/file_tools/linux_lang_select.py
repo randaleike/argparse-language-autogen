@@ -25,25 +25,26 @@ for the argparse libraries
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #==========================================================================
 
-import os
 from .json_data.param_return_tools import ParamRetDict
+from .json_data.jsonLanguageDescriptionList import LanguageDescriptionList
 from .common.doxygen_gen_tools import CDoxyCommentGenerator
-from .string_class_tools import BaseCppClassGenerator
+from .string_class_tools import BaseStringClassGenerator
 
-class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
+class LinuxLangSelectFunctionGenerator(BaseStringClassGenerator):
     """!
     Methods for Linux language select function generation
     """
-    def __init__(self, jsonLangData, eulaName:str|None = None, baseClassName:str = "BaseClass",
+    def __init__(self, jsonLangData:LanguageDescriptionList, owner:str|None = None, eulaName:str|None = None, baseClassName:str = "BaseClass",
                  dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
         @brief LinuxLangSelectFunctionGenerator constructor
         @param jsonLangData {string} JSON language description list file name
-        @param eulaName {string|None} Name of the EULA to pass down to the BaseCppClassGenerator parent
+        @param owner {string|None} Owner name to use in the copyright header message or None to use tool name
+        @param eulaName {string|None} Name of the EULA to pass down to the BaseStringClassGenerator parent
         @param baseClassName {string} Name of the base class for name generation
         @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
         """
-        super().__init__(eulaName, baseClassName, dynamicCompileSwitch)
+        super().__init__(owner, eulaName, baseClassName, dynamicCompileSwitch)
         self.selectFunctionName = "get"+baseClassName+"_Linux"
 
         self.paramDictList = [ParamRetDict.buildParamDict("langId", "const char*", "Current LANG value from the program environment")]
@@ -51,27 +52,30 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         self.langJsonData = jsonLangData
         self.doxyCommentGen = CDoxyCommentGenerator()
 
-    def getFunctionName(self):
+    def getFunctionName(self)->str:
         return self.selectFunctionName
 
-    def getOsDefine(self):
+    def getOsDefine(self)->str:
         return self.defOsString
 
-    def genFunctionDefine(self):
+    def genFunctionDefine(self)->list:
         """!
         @brief Get the function declaration string for the given name
         @return string list - Function comment block and declaration start
         """
-        return self._genFunctionDefine(self.selectFunctionName,
-                                       "Determine the correct local language class from the input LANG environment setting",
-                                       self.paramDictList)
+        codeList = self._defineFunctionWithDecorations(self.selectFunctionName,
+                                                       "Determine the correct local language class from the input LANG environment setting",
+                                                       self.paramDictList,
+                                                       self.baseIntfRetPtrDict)
+        codeList.append("{\n")
+        return codeList
 
-    def genFunctionEnd(self):
+    def genFunctionEnd(self)->str:
         """!
         @brief Get the function declaration string for the given name
         @return string - Function close with comment
         """
-        return self.endFunction(self.selectFunctionName)
+        return self._endFunction(self.selectFunctionName)
 
     def genFunction(self, outfile):
         """!
@@ -121,21 +125,21 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
             functionBody.append(if1BodyIndent+ifline)
             functionBody.append(if1BodyIndent+"{\n")
-            functionBody.append(if2BodyIndent+self.genMakePtrReturnStatement(langName))
+            functionBody.append(if2BodyIndent+self._genMakePtrReturnStatement(langName))
             functionBody.append(if1BodyIndent+"}\n")
 
         # Add the final else (unknown language) case
         defaultLang, defaultIsoCode = self.langJsonData.getDefaultData()
         functionBody.append(if1BodyIndent+"else //unknown language code, use default language\n")
         functionBody.append(if1BodyIndent+"{\n")
-        functionBody.append(if2BodyIndent+self.genMakePtrReturnStatement(defaultLang))
+        functionBody.append(if2BodyIndent+self._genMakePtrReturnStatement(defaultLang))
         functionBody.append(if1BodyIndent+"}\n")
 
         # Add the else if nullptr case
         functionBody.append(bodyIndent+"}\n")
         functionBody.append(bodyIndent+"else // null pointer input, use default language\n")
         functionBody.append(bodyIndent+"{\n")
-        functionBody.append(if1BodyIndent+self.genMakePtrReturnStatement(defaultLang))
+        functionBody.append(if1BodyIndent+self._genMakePtrReturnStatement(defaultLang))
         functionBody.append(bodyIndent+"} // end of if(nullptr != "+paramName+")\n")
 
         # Complete the function
@@ -143,7 +147,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         functionBody.append("#endif // "+self.defOsString+"\n")
         outfile.writelines(functionBody)
 
-    def genReturnFunctionCall(self, indent = 4):
+    def genReturnFunctionCall(self, indent:int = 4)->list:
         """!
         @brief Generate the call code for the linux dynamic lang selection function
         @param indent {number} Code indentation spaces
@@ -167,7 +171,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         return [getParam, doCall]
 
-    def _genUnitTestTest(self, testName, linuxEnvString, expectedIso, getIsoMethod):
+    def _genUnitTestTest(self, testName:str, linuxEnvString:str, expectedIso:str, getIsoMethod:str)->list:
         """!
         @brief Generate single selection function unit test instance
 
@@ -184,7 +188,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         testBody = self.doxyCommentGen.genDoxyMethodComment(breifDesc, [])
 
         testVar = "testVar"
-        testVarDecl = self.returnType+" "+testVar
+        testVarDecl = self.baseIntfRetPtrType+" "+testVar
         testVarTest = testVar+"->"+getIsoMethod+"().c_str()"
         testBody.append("TEST("+testBlockName+", "+testName+")\n")
         testBody.append("{\n")
@@ -195,13 +199,13 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         testBody.append("}\n")
         return testBody
 
-    def genExternDefinition(self):
+    def genExternDefinition(self)->str:
         """!
         @brief Return the external function definition
         @return string - External function definition line
         """
         externDef = "extern "
-        externDef += self.returnType
+        externDef += self.baseIntfRetPtrType
         externDef += " "
         externDef += self.selectFunctionName
         externDef += "("
@@ -211,7 +215,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         externDef += ");\n"
         return externDef
 
-    def genUnitTest(self, getIsoMethod, outfile):
+    def genUnitTest(self, getIsoMethod:str, outfile):
         """!
         @brief Generate all unit tests for the selection function
 
@@ -262,7 +266,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         # Generate block end code
         outfile.writelines(["#endif // "+self.defOsString+"\n"])
 
-    def genUnitTestFunctionCall(self, checkVarName, indent = 4):
+    def genUnitTestFunctionCall(self, checkVarName:str, indent:int = 4)->list:
         """!
         @brief Generate the call code for the linux dynamic lang selection unit test
         @param checkVarName {string} Unit test expected variable name
@@ -279,7 +283,7 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         getParam += " = getenv(\"LANG\");\n"
 
         doCall = indentText
-        doCall += self.returnType
+        doCall += self.baseIntfRetPtrType
         doCall += " "
         doCall += checkVarName
         doCall += " = "
@@ -290,7 +294,11 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
 
         return [getParam, doCall]
 
-    def getUnittestExternInclude(self):
+    def getUnittestExternInclude(self)->list:
+        """!
+        @brief Return linux specific include and external function definition strings
+        @return list of strings - linux specific #if, #include, external function and #endif code
+        """
         incBlock = []
         incBlock.append("#if "+self.defOsString+"\n")
         incBlock.append(self._genInclude("<cstdlib>"))
@@ -298,8 +306,8 @@ class LinuxLangSelectFunctionGenerator(BaseCppClassGenerator):
         incBlock.append("#endif // "+self.defOsString+"\n")
         return incBlock
 
-    def getUnittestFileName(self):
+    def getUnittestFileName(self)->tuple:
         """!
-        @return string Unit test cpp file name
+        @return tuple(str,str) - Unit test cpp file name, Test name
         """
         return "LocalLanguageSelect_Linux_test.cpp", "LocalLanguageSelect_Linux_test"

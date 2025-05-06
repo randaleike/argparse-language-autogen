@@ -26,7 +26,6 @@ for the argparse libraries
 #==========================================================================
 
 import os
-from file_tools.string_name_generator import StringClassNameGen
 
 class FileNameGenerator(object):
     jsonFileDir = "../data"
@@ -47,7 +46,7 @@ class FileNameGenerator(object):
         return "argparse-lang-list.json"
 
     @staticmethod
-    def getLanguageDescriptionFileName(directory = None)->str:
+    def getLanguageDescriptionFileName(directory:str|None = None)->str:
         """!
         @brief Get the default language description file name
         @param directory {path} - Path to the file location
@@ -68,7 +67,7 @@ class FileNameGenerator(object):
         return "argparse-strclass-def.json"
 
     @staticmethod
-    def getStringClassDescriptionFileName(directory = None)->str:
+    def getStringClassDescriptionFileName(directory:str|None = None)->str:
         if directory is None:
             return os.path.join(FileNameGenerator.jsonFileDir, FileNameGenerator.getStringClassDescriptionBaseFileName())
         else:
@@ -76,7 +75,7 @@ class FileNameGenerator(object):
             return os.path.join(directory, FileNameGenerator.getStringClassDescriptionBaseFileName())
 
     @staticmethod
-    def buildOutputFileName(baseName, ext, subdir = None)->str:
+    def buildOutputFileName(baseName:str, ext:str, subdir:str|None = None)->str:
         """!
         @brief Build the output filename
         @param baseName {string} Base file name to build

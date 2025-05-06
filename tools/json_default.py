@@ -111,7 +111,7 @@ def CreateDefaultStringFile(languageList:LanguageDescriptionList, classStrings:S
     @param forceUpdate {boolean} True force the update without user intervention,
                                  False request update confermation on all methods
     """
-    classStrings.setBaseClassName("ParserStringInterface")
+    classStrings.setBaseClassName("ParserStringListInterface")
     classStrings.setNamespaceName("argparser")
     classStrings.setDynamicCompileSwitch("DYNAMIC_INTERNATIONALIZATION")
     classStrings.addPropertyMethodEntry("isoCode", override = forceUpdate)

@@ -206,6 +206,27 @@ class LanguageDescriptionList(JsonHelper):
             return None, None, False
 
     @staticmethod
+    def isLanguagePropertyText(propertyName:str)->bool:
+        """!
+        @brief Return true if the data is stored as text or false if the data is stored as a number
+        @param propertyName (string) Name of the property from getLanguagePropertyList()
+        @return boolean - True if the data is stored as text or
+                          False if the data is stored as a number
+        """
+        if propertyName == 'LANG':
+            return True
+        elif propertyName == 'LANG_regions':
+            return True
+        elif propertyName == 'LANGID':
+            return False
+        elif propertyName == 'LANGID_regions':
+            return False
+        elif propertyName == 'isoCode':
+            return True
+        else:
+            return False
+
+    @staticmethod
     def getLanguagePropertyMethodName(propertyName:str)->str:
         """!
         @brief Get the property method name

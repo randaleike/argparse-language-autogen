@@ -238,7 +238,7 @@ class DoxyCommentGenerator():
         blockStrList.append(padPrefix+self._genBlockEnd()+"\n")
         return blockStrList
 
-    def genDoxyClassComment(self, briefDesc:str, longDesc:str|None = None, blockIndent:int = 0)->list:
+    def genDoxyClassComment(self, briefDesc:str|None, longDesc:str|None = None, blockIndent:int = 0)->list:
         """!
         @brief Generate a doxygen cgenDoxyClassCommentlass/structure documentation block
 
@@ -256,11 +256,13 @@ class DoxyCommentGenerator():
         prefix = padPrefix+self._genCommentBlockPrefix()
 
         # Add the brief text
-        blockStrList.extend(self._genBriefDesc(briefDesc, prefix))
+        if briefDesc is not None:
+            blockStrList.extend(self._genBriefDesc(briefDesc, prefix))
 
         # Add the long description
         if longDesc is not None:
-            blockStrList.append(prefix+"\n") # add empty line for readability
+            if briefDesc is not None:
+                blockStrList.append(prefix+"\n") # add empty line for readability
             blockStrList.extend(self._genLongDesc(prefix, longDesc))
 
         # Complete the block

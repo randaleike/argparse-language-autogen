@@ -32,7 +32,6 @@ from file_tools.json_data.jsonStringClassDescription import StringClassDescripti
 from file_tools.json_data.jsonStringClassDescription import TranslationTextParser
 from file_tools.json_data.param_return_tools import ParamRetDict
 
-from file_tools.string_name_generator import StringClassNameGen
 from file_tools.string_class_tools import BaseStringClassGenerator
 
 class GenerateLangFiles(BaseStringClassGenerator):
@@ -59,19 +58,19 @@ class GenerateLangFiles(BaseStringClassGenerator):
         self.langFileNames = {}
         self.includeSubDir = []
 
-        self.testParamValues = {'keyString': "--myKey",
-                                'envKeyString': "MY_ENV_KEY",
-                                'jsonKeyString': "jsonkey:",
-                                'xmlKeyString': "<xmlkey>",
-                                'nargs': "3",
-                                'nargsExpected': "2",
-                                'nargsFound': "1",
-                                'vargRange': "<-100:100>",
-                                'vargType': "integer",
-                                'valueString': "23"
+        self.testParamValues = {'keyString': ("--myKey", True),
+                                'envKeyString': ("MY_ENV_KEY", True),
+                                'jsonKeyString': ("jsonkey:", True),
+                                'xmlKeyString': ("<xmlkey>", True),
+                                'nargs': ("3", False),
+                                'nargsExpected': ("2", False),
+                                'nargsFound': ("1", False),
+                                'vargRange': ("<-100:100>", True),
+                                'vargType': ("integer", True),
+                                'valueString': ("23", True)
                                 }
 
-    def _addFile(self, languageName, fileType, fileName):
+    def _addFile(self, languageName:str, fileType:str, fileName:str):
         if languageName in self.langFileNames:
             self.langFileNames[languageName][fileType] = fileName
         else:
@@ -79,28 +78,28 @@ class GenerateLangFiles(BaseStringClassGenerator):
             self.langFileNames[languageName][fileType] = fileName
 
 
-    def getCmakeLangHFileNames(self):
+    def getCmakeLangHFileNames(self)->list:
         fileList = []
         for languageName, fileDict in self.langFileNames.items():
             fileList.append(fileDict['includeFile'])
         return fileList
 
-    def getCmakeIncludeDirs(self):
+    def getCmakeIncludeDirs(self)->list:
         return self.includeSubDir
 
-    def getCmakeLangLibFileNames(self):
+    def getCmakeLangLibFileNames(self)->list:
         fileList = []
         for languageName, fileDict in self.langFileNames.items():
             fileList.append(fileDict['sourceFile'])
         return fileList
 
-    def getCmakeCppUnitTestLangFiles(self, languageName):
+    def getCmakeCppUnitTestLangFiles(self, languageName:str)->tuple:
         if languageName in self.langFileNames:
             return self.langFileNames[languageName]['sourceFile'], self.langFileNames[languageName]['unittestFile']
         else:
             return None, None
 
-    def getCmakeCppUnitTestSets(self):
+    def getCmakeCppUnitTestSets(self)->list:
         """!
         @brief Get the language unit test requirements list
         @return list of tuples (string, string, string) - Language name,
@@ -117,26 +116,22 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return unittestSets
 
-    def _getParamTestValue(self, paramName:str, isText:bool):
+    def _getParamTestValue(self, paramName:str)->str:
         """!
         @brief Return the parameter test value
         @param paramName (string) Name fot the value
-        @param isText (boolean) True if parameter expects text input value,
-                                else False
         @return string - Test value
         """
         if paramName in self.testParamValues:
+            value, isText = self.testParamValues[paramName]
             if isText:
-                return "\""+self.testParamValues[paramName]+"\""
+                return "\""+value+"\""
             else:
-                return self.testParamValues[paramName]
+                return value
         else:
-            if isText:
-                return "\"42\""
-            else:
-                return "42"
+            return "42"
 
-    def _genPropertyCode(self, langName, propertyName, propertyReturn, isText):
+    def _genPropertyCode(self, langName:str, propertyName:str, propertyReturn:dict)->list:
         """!
         @brief Generate property function code
         @param langName {string} Language name
@@ -144,38 +139,30 @@ class GenerateLangFiles(BaseStringClassGenerator):
         @param propertyReturn {dictionary} Property method return dictionary
         @return list of strings - Inline code
         """
-        returnType = ParamRetDict.getReturnType(propertyReturn)
+        isText = LanguageDescriptionList.isLanguagePropertyText(propertyName)
         codeTxt = []
-        if self.isReturnList(propertyReturn):
+
+        if self._isReturnList(propertyReturn):
             # List case
+            codeTxt.append(self._genFunctionRetType(propertyReturn)+"returnData;")
             dataList = self.jsonLangData.getLanguagePropertyData(langName, propertyName)
-            codeTxt.append(returnType+" returnData;")
 
             # Determine data type
             for dataItem in dataList:
-                if isText:
-                    codeTxt.append(self.getAddStringListStatment("returnData", dataItem))
-                else:
-                    codeTxt.append(self.getAddValueListStatment("returnData", dataItem))
+                codeTxt.append(self._genAddListStatment("returnData", dataItem, isText))
             codeTxt.append("return returnData;")
         else:
             # Single item case
             dataItem = self.jsonLangData.getLanguagePropertyData(langName, propertyName)
-
-            # Determine data type
-            if isText:
-                codeTxt.append("return (\""+dataItem+"\");")
-            else:
-                codeTxt.append("return ("+dataItem+");")
+            codeTxt.append(self._genReturnStatment(dataItem, isText))
 
         return codeTxt
 
-    def _writeIncPropertyMethods(self, hFile, langName):
+    def _writeIncPropertyMethods(self, hFile):
         """!
         @brief Write the property method definitions
 
         @param hFile {File} File to write the data to
-        @param langName {string} Language name or None this is for the base file
         """
         # Add the property fetch methods
         postfix = "final"
@@ -184,14 +171,10 @@ class GenerateLangFiles(BaseStringClassGenerator):
         for propertyMethod in propertyMethodList:
             propertyName, propertyDesc, propertyParams, propertyReturn = self.jsonStringsData.getPropertyMethodData(propertyMethod)
 
-            # Translate the return type and input params
-            xlatedRetDict, isText = self.xlateReturnDict(propertyReturn)
-            xlatedParamList = self.xlateParamList(propertyParams)
-
             # Output final declaration
-            hFile.writelines(self._writeMethod(propertyMethod, propertyDesc, xlatedParamList, xlatedRetDict, None, postfix))
+            hFile.writelines(self._writeMethod(propertyMethod, propertyDesc, propertyParams, propertyReturn, None, postfix))
 
-    def _writeSrcPropertyMethods(self, cppFile, langName, className):
+    def _writeSrcPropertyMethods(self, cppFile, langName:str, className:str):
         """!
         @brief Write the property method sourc file definitios
 
@@ -204,25 +187,23 @@ class GenerateLangFiles(BaseStringClassGenerator):
             propertyName, propertyDesc, propertyParams, propertyReturn = self.jsonStringsData.getPropertyMethodData(propertyMethod)
 
             # Translate the return type
-            xlatedRetDict, isText = self.xlateReturnDict(propertyReturn)
-            xlatedParamList = self.xlateParamList(propertyParams)
-            if len(xlatedParamList) == 0:
+            if len(propertyParams) == 0:
                 postfix = "const"
             else:
                 postfix = None
 
             # Output final declaration
-            methodDef = self.defineFunctionWithDecorations(className+"::"+propertyMethod,
+            methodDef = self._defineFunctionWithDecorations(className+"::"+propertyMethod,
                                                            propertyDesc,
-                                                           xlatedParamList,
-                                                           xlatedRetDict,
+                                                           propertyParams,
+                                                           propertyReturn,
                                                            False,
                                                            None,
                                                            postfix)
             cppFile.writelines(methodDef)
 
             # Get the language data replacements
-            codeText = self._genPropertyCode(langName, propertyName, xlatedRetDict, isText)
+            codeText = self._genPropertyCode(langName, propertyName, propertyReturn)
 
             # Output code body
             if len(codeText) == 1:
@@ -250,20 +231,20 @@ class GenerateLangFiles(BaseStringClassGenerator):
             # Output the function
             hFile.writelines(self._writeMethod(translateMethodName, transDesc, transParams, transReturn, None, postfixFinal))
 
-    def _genTranslateCode(self, streamDescList):
+    def _genTranslateCode(self, streamDescList:list)->str:
         """!
         @brief Generate the string output code
         @param inlineStreamDescList {tuple list} Stream output tuple list
         @return string - Inline code
         """
         streamName = "parserstr"
-        streamString = StringClassNameGen.getParserStrStreamType()+" "+streamName+"; "
+        streamString = self._getParserStrStreamType()+" "+streamName+"; "
         streamString += streamName
         streamString += TranslationTextParser.assembleStream(streamDescList, "<<")
         streamString += "; return parserstr.str();"
         return streamString
 
-    def _writeSrcTranslateMethods(self, cppFile, langName, className):
+    def _writeSrcTranslateMethods(self, cppFile, langName:str, className:str):
         """!
         @brief Write the property method definitions
 
@@ -276,18 +257,16 @@ class GenerateLangFiles(BaseStringClassGenerator):
             transDesc, transParams, transReturn = self.jsonStringsData.getTranlateMethodFunctionData(translateMethodName)
 
             # Translate the return type
-            xlatedRetDict, isText = self.xlateReturnDict(transReturn)
-            xlatedParamList = self.xlateParamList(transParams)
-            if len(xlatedParamList) == 0:
+            if len(transParams) == 0:
                 postfix = "const"
             else:
                 postfix = None
 
             # Output final declaration
-            methodDef = self.defineFunctionWithDecorations(className+"::"+translateMethodName,
+            methodDef = self._defineFunctionWithDecorations(className+"::"+translateMethodName,
                                                            transDesc,
-                                                           xlatedParamList,
-                                                           xlatedRetDict,
+                                                           transParams,
+                                                           transReturn,
                                                            False,
                                                            None,
                                                            postfix,
@@ -304,7 +283,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
             # Output code body
             cppFile.writelines(["{"+codeText+"}\n"])
 
-    def _writeHFile(self, hFile, langName):
+    def _writeHFile(self, hFile, langName:str):
         """!
         @brief Write the language specific include file
 
@@ -318,7 +297,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         includeList = ["<cstdio>",
                        "<cstring>",
                        self.jsonStringsData.getBaseClassName()+".h",]
-        hFile.writelines(self.genIncludeBlock(includeList))
+        hFile.writelines(self._genIncludeBlock(includeList))
         hFile.writelines(["\n"]) # whitespace for readability
         hFile.writelines(["#pragma once\n"])
 
@@ -327,26 +306,26 @@ class GenerateLangFiles(BaseStringClassGenerator):
         hFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
 
         # Start class definition
-        hFile.writelines(self.genClassOpen(className,
+        hFile.writelines(self._genClassOpen(className,
                                             "Language specific parser error/help string generation interface",
                                             "public "+self.jsonStringsData.getBaseClassName(),
                                             "final"))
         hFile.writelines(["    public:\n"])
 
         # Add default Constructor/destructor definitions
-        hFile.writelines(self.genClassDefaultConstructorDestructor(className, self.declareIndent, False, True))
+        hFile.writelines(self._genClassDefaultConstructorDestructor(className, self.declareIndent, False, True))
 
         # Add the property fetch methods
-        self._writeIncPropertyMethods(hFile, langName)
+        self._writeIncPropertyMethods(hFile)
         hFile.writelines(["\n"]) # whitespace for readability
 
         # Add the string generation methods
         self._writeIncTranslateMethods(hFile)
 
         # Close the class
-        hFile.writelines(self.genClassClose(className))
+        hFile.writelines(self._genClassClose(className))
 
-    def _writeCppFile(self, cppFile, langName):
+    def _writeCppFile(self, cppFile, langName:str):
         """!
         @brief Write the language specific source file
 
@@ -361,11 +340,11 @@ class GenerateLangFiles(BaseStringClassGenerator):
         includeFileList = ["<sstream>",
                            self._generateHFileName(),
                            self._generateHFileName(langName)]
-        cppFile.writelines(self.genIncludeBlock(includeFileList))
+        cppFile.writelines(self._genIncludeBlock(includeFileList))
 
         className = self.jsonStringsData.getLanguageClassName(langName)
         cppFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
-        cppFile.writelines(["using "+StringClassNameGen.getParserStrStreamType()+" = std::stringstream;\n", "\n"])
+        cppFile.writelines(["using "+self._getParserStrStreamType()+" = std::stringstream;\n", "\n"])
 
         # Add doxygen group start
         cppFile.writelines(["\n"]) # whitespace for readability
@@ -383,7 +362,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         cppFile.writelines(["\n"]) # whitespace for readability
         cppFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
 
-    def _generatePropertyUnittest(self, propertyMethod, langName):
+    def _generatePropertyUnittest(self, propertyMethod:str, langName:str)->list:
         """!
         @brief Generate the unit test for the input property method
         @param propertyMethod {string} Property function name
@@ -396,30 +375,28 @@ class GenerateLangFiles(BaseStringClassGenerator):
         bodyIndent = "".rjust(4, ' ')
 
         # Translate the return type
-        xlatedRetDict, isRetText = self.xlateReturnDict(propertyReturn)
         codeText.append("TEST("+unitTestSectionName+", fetch"+propertyMethod+")\n")
         codeText.append("{\n")
         codeText.append(bodyIndent+self.jsonStringsData.getLanguageClassName(langName)+" testvar;\n")
 
         # Build the property function call
-        fetchCode = ParamRetDict.getReturnType(xlatedRetDict)
-        fetchCode += " output = testvar."
+        fetchCode = self._genFunctionRetType(propertyReturn)
+        fetchCode += "output = testvar."
         fetchCode += propertyMethod
         fetchCode += "("
         paramPrefix = ""
         for param in propertyParams:
-            paramType = ParamRetDict.getParamType(param)
             fetchCode += paramPrefix
-            paramValue = self._getParamTestValue(ParamRetDict.getParamName(param),
-                                                 self.xlateMatrix[paramType]['isText'])
+            paramValue = self._getParamTestValue(ParamRetDict.getParamName(param))
             fetchCode += paramValue
             paramPrefix = ", "
         fetchCode += ");\n"
         codeText.append(bodyIndent+fetchCode)
 
         # Build the test assertion
-        if isRetText:
-            if self.isReturnList(xlatedRetDict):
+        isList = ParamRetDict.isModList(ParamRetDict.getReturnTypeMod(propertyReturn))
+        if LanguageDescriptionList.isLanguagePropertyText(propertyName):
+            if isList:
                 codeText.append(bodyIndent+"for (auto const &item : output)\n")
                 codeText.append(bodyIndent+"{\n")
                 forBodyIndent = bodyIndent+"".rjust(4, ' ')
@@ -437,7 +414,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
                 assertText += "\", output.c_str());\n"
                 codeText.append(bodyIndent+assertText)
         else:
-            if ParamRetDict.isReturnList(xlatedRetDict):
+            if isList:
                 codeText.append(bodyIndent+"for (auto const &item : output)\n")
                 codeText.append(bodyIndent+"{\n")
                 forBodyIndent = bodyIndent+"".rjust(4, ' ')
@@ -455,7 +432,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         codeText.append("}\n")
         return codeText
 
-    def _generateTranslateUnittest(self, translateMethodName, langName):
+    def _generateTranslateUnittest(self, translateMethodName:str, langName:str)->list:
         """!
         @brief Generate the unit test for the input property method
         @param propertyMethod {string} Property function name
@@ -468,21 +445,20 @@ class GenerateLangFiles(BaseStringClassGenerator):
         bodyIndent = "".rjust(4, ' ')
 
         # Translate the return type
-        xlatedRetDict, isRetText = self.xlateReturnDict(transReturn)
         codeText.append("TEST("+unitTestSectionName+", print"+translateMethodName+")\n")
         codeText.append("{\n")
         codeText.append(bodyIndent+self.jsonStringsData.getLanguageClassName(langName)+" testvar;\n")
 
         # Build the property function call
-        fetchCode = ParamRetDict.getReturnType(xlatedRetDict)
-        fetchCode += " output = testvar."
+        fetchCode = self._genFunctionRetType(transReturn)
+        fetchCode += "output = testvar."
         fetchCode += translateMethodName
         fetchCode += "("
         paramPrefix = ""
         for param in transParams:
             paramType = ParamRetDict.getParamType(param)
             fetchCode += paramPrefix
-            fetchCode += self._getParamTestValue(ParamRetDict.getParamName(param), self.xlateMatrix[paramType]['isText'])
+            fetchCode += self._getParamTestValue(ParamRetDict.getParamName(param))
             paramPrefix = ", "
         fetchCode += ");\n"
         codeText.append(bodyIndent+fetchCode)
@@ -498,7 +474,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         codeText.append("}\n")
         return codeText
 
-    def _writeUnittestFile(self, testFile, langName):
+    def _writeUnittestFile(self, testFile, langName:str):
         """!
         @brief Write the OS language selection CPP file
 
@@ -516,7 +492,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
                            "<gtest/gtest.h>",
                            self._generateHFileName(),
                            self._generateHFileName(langName)]
-        testFile.writelines(self.genIncludeBlock(includeFileList))
+        testFile.writelines(self._genIncludeBlock(includeFileList))
 
         # Add doxygen group start
         testFile.writelines(["\n"]) # whitespace for readability
@@ -529,7 +505,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         # Set the class name
         className = self.jsonStringsData.getLanguageClassName(langName)
         testFile.writelines(["using namespace "+self.nameSpaceName+";\n"])
-        testFile.writelines(["using "+StringClassNameGen.getParserStrStreamType()+" = std::stringstream;\n", "\n"])
+        testFile.writelines(["using "+self._getParserStrStreamType()+" = std::stringstream;\n", "\n"])
         testFile.writelines(["// NOLINTBEGIN\n"])
 
         # Add the property fetch method tests
@@ -559,7 +535,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
         testFile.writelines(["\n"]) # whitespace for readability
         testFile.writelines(self.doxyCommentGen.genDoxyGroupEnd())
 
-    def generateLangHFile(self, languageName, baseDirectory = "../output", subdir = "inc"):
+    def generateLangHFile(self, languageName:str, baseDirectory:str = "../output", subdir:str = "inc")->bool:
         """!
         @brief Generate the language specific strings class include file
         @param baseDirectory {string} Base File output directory
@@ -582,7 +558,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateLangCppFile(self, languageName, baseDirectory = "../output", subdir = "src"):
+    def generateLangCppFile(self, languageName:str, baseDirectory:str = "../output", subdir:str = "src")->bool:
         """!
         @brief Generate the language specific strings class cpp file
         @param baseDirectory {string} Base File output directory
@@ -605,7 +581,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateLangUnittestFile(self, languageName, baseDirectory = "../output", subdir = "test"):
+    def generateLangUnittestFile(self, languageName:str, baseDirectory:str = "../output", subdir:str = "test")->bool:
         """!
         @brief Generate the language specific strings class unittest file
         @param baseDirectory {string} Base File output directory
@@ -628,7 +604,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateLangHFiles(self, baseDirectory = "../output", subdir = "inc"):
+    def generateLangHFiles(self, baseDirectory:str = "../output", subdir:str = "inc")->bool:
         """!
         @brief Generate all language specific strings class include files
         @param baseDirectory {string} Base File output directory
@@ -648,7 +624,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateLangCppFiles(self, baseDirectory = "../output", subdir = "src"):
+    def generateLangCppFiles(self, baseDirectory:str = "../output", subdir:str = "src")->bool:
         """!
         @brief Generate all language specific strings class cpp files
         @param baseDirectory {string} Base File output directory
@@ -667,7 +643,7 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateLangUnittestFiles(self, baseDirectory = "../output", subdir = "test"):
+    def generateLangUnittestFiles(self, baseDirectory:str = "../output", subdir:str = "test")->bool:
         """!
         @brief Generate all language specific strings class unittest files
         @param baseDirectory {string} Base File output directory
@@ -686,14 +662,15 @@ class GenerateLangFiles(BaseStringClassGenerator):
 
         return returnStatus
 
-    def generateLangFiles(self, baseDirectory = "../output", incSubdir = "inc", srcSubdir="src", testSubDir="test"):
+    def generateLangFiles(self, baseDirectory:str = "../output", incSubdir:str = "inc",
+                          srcSubdir:str = "src", testSubDir:str = "test")->bool:
         """!
         @brief Generate all language specific strings class files
         @param baseDirectory {string} Base File output directory
         @param incSubdir {string} Subdirectory to place include files in
         @param srcSubdir {string} Subdirectory to place cpp source files in
         @param testSubDir {string} Subdirectory to place unit test files in
-        @return tuple - boolean = True for pass, else false for failure
+        @return boolean = True for pass, else false for failure
         """
         hfileStatus = self.generateLangHFiles(baseDirectory, incSubdir)
         cppfileStatus = self.generateLangCppFiles(baseDirectory, srcSubdir)

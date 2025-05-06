@@ -57,7 +57,8 @@ class CmakeGenerator(object):
         self.dynamicSelectionSwitch = "-D"+jsonStringFile.getDynamicCompileSwitch()
         self.jsonStringFile = jsonStringFile
 
-    def _generateUnittestBuild(self, desciption, sourceFiles, targetName, includeDir, incCoverage = True):
+    def _generateUnittestBuild(self, desciption:str, sourceFiles:list, targetName:str,
+                               includeDir:str, incCoverage:bool = True)->list:
         """!
         @brief Generate the language file unittest executable build
 
@@ -103,7 +104,8 @@ class CmakeGenerator(object):
 
         return buildCode
 
-    def _generateLangUnittestBuild(self, languageName, cppFile, unittestFile, targetName, includeDir, incCoverage = True):
+    def _generateLangUnittestBuild(self, languageName:str, cppFile:str, unittestFile:str,
+                                   targetName:str, includeDir:str, incCoverage:bool = True)->list:
         """!
         @brief Generate the language file unittest executable build
 
@@ -125,7 +127,6 @@ class CmakeGenerator(object):
         """!
         @brief CMake include file if you need to link in the source files directly
         @param cmakeFile {file} Open file for output
-        @param baseDir {string} Base output directory name
         """
         # Build the library include path list
         cmakeFile.writelines(["####\n"])

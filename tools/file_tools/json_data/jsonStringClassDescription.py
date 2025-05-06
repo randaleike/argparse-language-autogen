@@ -192,7 +192,8 @@ class TranslationTextParser(object):
             if TranslationTextParser.parsedTypeText == descType:
                 returnText += descData
             elif TranslationTextParser.parsedTypeParam == descType:
-                returnText += valueXlateDict[descData]
+                value, isText = valueXlateDict[descData]
+                returnText += value
             elif TranslationTextParser.parsedTypeSpecial == descType:
                 returnText += "\\"+descData
             else:

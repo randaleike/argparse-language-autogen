@@ -31,6 +31,9 @@ class ParamRetDict(object):
     typeModRef:int   = 1<<2
     typeModUndef:int = 1<<3
 
+    typeModArrayShift:int = 16
+    typeModArrayMask:int  = 0xFFFF
+
     """!
     Parameter and return dictionary definitions
     """
@@ -249,11 +252,21 @@ class ParamRetDict(object):
             return True
 
     @staticmethod
-    def isOrUndef(testDict:dict) -> bool:
+    def getArraySize(typeMod:int) -> int:
         """!
-        @brief Build a return data dictionary
-        @param testDict {dictionary} Dictionary to test
-        @return bool - True if object needs a reference decoration, else false
+        @brief Get the array size in the type modifier value
+        @param typeMod {integer} Dictionary TypeMod entry
+        @return int - Array size
         """
-        typeMod = ParamRetDict.getParamTypeMod(testDict)
-        return ParamRetDict.isOrUndefType(typeMod)
+        return ((typeMod >> ParamRetDict.typeModArrayShift) & ParamRetDict.typeModArrayMask)
+
+    @staticmethod
+    def setArraySize(varDict:dict, arraySize:int):
+        """!
+        @brief Get the array size in the type modifier value
+        @param varDict {dict} Dictionary object to modify
+        @return int - Array size
+        """
+        typeMod = varDict['typeMod']
+        typeMod = typeMod | ((arraySize & ParamRetDict.typeModArrayMask) << ParamRetDict.typeModArrayShift)
+        varDict['typeMod'] = typeMod

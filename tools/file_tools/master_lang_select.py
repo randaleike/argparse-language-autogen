@@ -26,23 +26,24 @@ for the argparse libraries
 #==========================================================================
 
 from .common.doxygen_gen_tools import CDoxyCommentGenerator
-from .string_class_tools import BaseCppClassGenerator
+from .string_class_tools import BaseStringClassGenerator
 
-class MasterSelectFunctionGenerator(BaseCppClassGenerator):
+class MasterSelectFunctionGenerator(BaseStringClassGenerator):
     """!
     Methods for master language select function generation
     """
-    def __init__(self, eulaName:str|None = None, baseClassName:str = "BaseClass",
+    def __init__(self, owner:str|None = None, eulaName:str|None = None, baseClassName:str = "BaseClass",
                  methodName:str = "getLocalParserStringListInterface",
                  dynamicCompileSwitch:str = "DYNAMIC_INTERNATIONALIZATION"):
         """!
         @brief MasterSelectFunctionGenerator constructor
-        @param eulaName {string|None} Name of the EULA to pass down to the BaseCppClassGenerator parent
+        @param owner {string|None} Owner name to use in the copyright header message or None to use tool name
+        @param eulaName {string|None} Name of the EULA to pass down to the BaseStringClassGenerator parent
         @param baseClassName {string} Name of the base class for name generation
         @param methodName {string} Function name to be used for generation
         @param dynnamicCompileSwitch {string} Dynamic compile switch for #if generation
         """
-        super().__init__(eulaName, baseClassName, dynamicCompileSwitch)
+        super().__init__(owner, eulaName, baseClassName, dynamicCompileSwitch)
         self.selectFunctionName = baseClassName+"::"+methodName
         self.selectBaseFunctionName = methodName
 
@@ -50,29 +51,31 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
                          "based on the OS specific local language setting and return the correct class object"
         self.doxyCommentGen = CDoxyCommentGenerator()
 
-    def getFunctionName(self):
+    def getFunctionName(self)->str:
         return self.selectFunctionName
 
-    def getFunctionDesc(self):
+    def getFunctionDesc(self)->tuple:
         """!
         @brief Generate a function declatation text block with doxygen comment
-        @return string list - Function doxygen comment block and declaration
+        @return tuple - Function (name, description, return dictionary, param list)
         """
-        return self.selectBaseFunctionName, self.briefDesc, self.retPtrDict, []
+        return self.selectBaseFunctionName, self.briefDesc, self.baseIntfRetPtrDict, []
 
-    def genFunctionDefine(self):
+    def genFunctionDefine(self)->list:
         """!
         @brief Get the function declaration string for the given name
         @return string list - Function comment block and declaration start
         """
-        return self._genFunctionDefine(self.selectFunctionName, self.briefDesc, [])
+        codeList = self._defineFunctionWithDecorations(self.selectFunctionName, self.briefDesc, [], self.baseIntfRetPtrDict)
+        codeList.append("{\n")
+        return codeList
 
-    def genFunctionEnd(self):
+    def genFunctionEnd(self)->str:
         """!
         @brief Get the function declaration string for the given name
         @return string - Function close with comment
         """
-        return self.endFunction(self.selectFunctionName)
+        return self._endFunction(self.selectFunctionName)
 
     def genFunction(self, outfile, osLangSelectors):
         """!
@@ -105,7 +108,7 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         functionBody.append(self.genFunctionEnd())
         outfile.writelines(functionBody)
 
-    def genReturnFunctionCall(self, indent = 4):
+    def genReturnFunctionCall(self, indent:int = 4)->list:
         """!
         @brief Generate the call code for the linux dynamic lang selection function
         @param indent {number} Code indentation spaces
@@ -114,7 +117,7 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         doCall = "return "+self.selectFunctionName+"();\n"
         return [doCall.rjust(indent, " ")]
 
-    def genUnitTest(self, getIsoMethod, outfile, osLangSelectors):
+    def genUnitTest(self, getIsoMethod:str, outfile, osLangSelectors):
         """!
         @brief Generate all unit tests for the selection function
 
@@ -137,7 +140,7 @@ class MasterSelectFunctionGenerator(BaseCppClassGenerator):
         testBody.extend(self.doxyCommentGen.genDoxyMethodComment(breifDesc, []))
 
         testVar = "testVar"
-        testVarDecl = self.returnType+" "+testVar
+        testVarDecl = self.baseIntfRetPtrType+" "+testVar
         testBody.append("TEST("+testBlockName+", TestLocalSelectMethod)\n")
         testBody.append("{\n")
 

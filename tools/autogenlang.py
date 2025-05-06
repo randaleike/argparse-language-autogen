@@ -53,15 +53,18 @@ from json_default import CreateDefaultStringFile
 ##################################
 def GenerateCmake(baseFileGen:GenerateBaseLangFiles, langFileGen:GenerateLangFiles,
                   incDirList:list, mockDir:str, filePath:str,
-                  jsonStringFile:StringClassDescription):
+                  jsonStringFile:StringClassDescription)->bool:
     """!
     @brief Generate the subdir makefile
+
     @param baseFileGen {GenerateBaseLangFiles} Object used to generate the base interface files
     @param langFileGen {GenerateLangFiles} Object used to generate the language specific interface files
     @param incDirList {list of strings} Include directory paths relative to the file base directory
     @param mockDir {string} Mock file output directory
     @param filePath {string} Base directory name
     @param jsonStringFile {StringClassDescription} Class description file
+
+    @return boolean- True for pass else False for failure
     """
     baseFileDir = os.path.basename(os.path.normpath(filePath))
     dynamicCompileSwitch = jsonStringFile.getDynamicCompileSwitch()
@@ -120,7 +123,7 @@ def GenerateLanguageSelectFiles(languageList:LanguageDescriptionList, classStrin
     if (baseStatus and langStatus):
         GenerateCmake(baseFileGen, langFileGen, [incfileSubdir], mockfileSubdir, filePath, classStrings)
 
-def MakeSubdir(basefilePath, subDirName):
+def MakeSubdir(basefilePath:str, subDirName:str)->str:
     """!
     @brief Make the subdirectory within the output directory if it doesn't
            already exist
